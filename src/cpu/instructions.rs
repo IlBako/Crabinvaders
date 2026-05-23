@@ -22,6 +22,6 @@ pub fn dcr_instruction(current_val: u8, condition_bits: &mut ConditionBits) -> u
     condition_bits.set_z(res == 0);
     condition_bits.set_p(res.count_ones() % 2 == 0);
     condition_bits.set_s(res & 0x80 == 0x80);
-    condition_bits.set_ac((current_val & 0x0F) != 0x00);
+    condition_bits.set_ac((current_val & 0x0F) == 0x00);
     res
 }
