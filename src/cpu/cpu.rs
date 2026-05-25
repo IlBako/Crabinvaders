@@ -14,6 +14,31 @@ struct Registers {
     L: u8,
 }
 
+impl Registers {
+    fn get_bc(&self) -> u16 {
+        ((self.B as u16) << 8) | self.C as u16
+    }
+    fn get_de(&self) -> u16 {
+        ((self.D as u16) << 8) | self.E as u16
+    }
+    fn get_hl(&self) -> u16 {
+        ((self.H as u16) << 8) | self.L as u16
+    }
+
+    fn set_bc(&mut self, val: u16) {
+        self.B = (val >> 8) as u8;
+        self.C = val as u8;
+    }
+    fn set_de(&mut self, val: u16) {
+        self.D = (val >> 8) as u8;
+        self.E = val as u8;
+    }
+    fn set_hl(&mut self, val: u16) {
+        self.H = (val >> 8) as u8;
+        self.L = val as u8;
+    }
+}
+
 pub struct ConditionBits {
     bits: u8,
 }
@@ -24,7 +49,13 @@ pub struct State {
     pub pc: u16,
     sp: u16,
     pub(crate) condition_bits: ConditionBits,
-    // interrupted: bool,
+    pub cpu_state: CPUState,
+    // interrupt_enabled: bool,
+}
+
+pub enum CPUState {
+    RUNNING,
+    HALTED,
 }
 
 impl State {
@@ -35,6 +66,7 @@ impl State {
             pc: 0,
             sp: 0,
             condition_bits: ConditionBits::default(),
+            cpu_state: CPUState::RUNNING,
             // interrupted: false,
         }
     }
@@ -155,6 +187,7 @@ pub fn init(rom: Vec<u8>) -> State {
     state
 }
 
+#[allow(dead_code)]
 pub fn read_instruction(mut current_state: State) -> State {
     let mut pc: usize = current_state.pc as usize;
     let code = &current_state.memory[pc..];
@@ -171,16 +204,13 @@ pub fn read_instruction(mut current_state: State) -> State {
         }
         0x02 => {
             // STAX B
-            let address =
-                (current_state.registers.B as u16) << 8 | current_state.registers.C as u16;
+            let address = current_state.registers.get_bc();
             current_state.memory[address as usize] = current_state.registers.A;
         }
         0x03 => {
             // INX B
-            let bc = (current_state.registers.B as u16) << 8 | current_state.registers.C as u16;
-            let res = bc.wrapping_add(1);
-            current_state.registers.B = (res >> 8) as u8;
-            current_state.registers.C = res as u8;
+            let res = current_state.registers.get_bc().wrapping_add(1);
+            current_state.registers.set_bc(res);
         }
         0x04 => {
             // INR B
@@ -206,25 +236,21 @@ pub fn read_instruction(mut current_state: State) -> State {
         0x08 => { /* NOP */ }
         0x09 => {
             // DAD B
-            let hl = (current_state.registers.H as u16) << 8 | current_state.registers.L as u16;
-            let bc = (current_state.registers.B as u16) << 8 | current_state.registers.C as u16;
+            let hl = current_state.registers.get_hl();
+            let bc = current_state.registers.get_bc();
             let (res, carry) = hl.overflowing_add(bc);
-            current_state.registers.H = (res >> 8) as u8;
-            current_state.registers.L = res as u8;
+            current_state.registers.set_hl(res);
             current_state.condition_bits.set_c(carry);
         }
         0x0a => {
             // LDAX B
-            let address =
-                (current_state.registers.B as u16) << 8 | current_state.registers.C as u16;
+            let address = current_state.registers.get_bc();
             current_state.registers.A = current_state.memory[address as usize];
         }
         0x0b => {
             // DCX B
-            let bc = (current_state.registers.B as u16) << 8 | current_state.registers.C as u16;
-            let res = bc.wrapping_sub(1);
-            current_state.registers.B = (res >> 8) as u8;
-            current_state.registers.C = res as u8;
+            let res = current_state.registers.get_bc().wrapping_sub(1);
+            current_state.registers.set_bc(res);
         }
         0x0c => {
             // INR C
@@ -256,16 +282,13 @@ pub fn read_instruction(mut current_state: State) -> State {
         }
         0x12 => {
             // STAX D
-            let address =
-                (current_state.registers.D as u16) << 8 | current_state.registers.E as u16;
+            let address = current_state.registers.get_de();
             current_state.memory[address as usize] = current_state.registers.A;
         }
         0x13 => {
             // INX D
-            let de = (current_state.registers.D as u16) << 8 | current_state.registers.E as u16;
-            let res = de.wrapping_add(1);
-            current_state.registers.D = (res >> 8) as u8;
-            current_state.registers.E = res as u8;
+            let res = current_state.registers.get_de().wrapping_add(1);
+            current_state.registers.set_de(res);
         }
         0x14 => {
             // INR D
@@ -291,25 +314,21 @@ pub fn read_instruction(mut current_state: State) -> State {
         0x18 => { /* NOP */ }
         0x19 => {
             // DAD D
-            let hl = (current_state.registers.H as u16) << 8 | current_state.registers.L as u16;
-            let de = (current_state.registers.D as u16) << 8 | current_state.registers.E as u16;
+            let hl = current_state.registers.get_hl();
+            let de = current_state.registers.get_de();
             let (res, carry) = hl.overflowing_add(de);
-            current_state.registers.H = (res >> 8) as u8;
-            current_state.registers.L = res as u8;
+            current_state.registers.set_hl(res);
             current_state.condition_bits.set_c(carry);
         }
         0x1a => {
             // LDAX D
-            let address =
-                (current_state.registers.D as u16) << 8 | current_state.registers.E as u16;
+            let address = current_state.registers.get_de();
             current_state.registers.A = current_state.memory[address as usize];
         }
         0x1b => {
             // DCX D
-            let de = (current_state.registers.D as u16) << 8 | current_state.registers.E as u16;
-            let res = de.wrapping_sub(1);
-            current_state.registers.D = (res >> 8) as u8;
-            current_state.registers.E = res as u8;
+            let res = current_state.registers.get_de().wrapping_sub(1);
+            current_state.registers.set_de(res);
         }
         0x1c => {
             // INR E
@@ -349,10 +368,8 @@ pub fn read_instruction(mut current_state: State) -> State {
         }
         0x23 => {
             // INX H
-            let hl = (current_state.registers.H as u16) << 8 | current_state.registers.L as u16;
-            let res = hl.wrapping_add(1);
-            current_state.registers.H = (res >> 8) as u8;
-            current_state.registers.L = res as u8;
+            let res = current_state.registers.get_hl().wrapping_add(1);
+            current_state.registers.set_hl(res);
         }
         0x24 => {
             // INR H
@@ -386,12 +403,13 @@ pub fn read_instruction(mut current_state: State) -> State {
             } else {
                 current_state.condition_bits.set_ac(false);
             }
-            if accumulator > 0x99 || old_c || step1_carry {
+            let upper_nibble = accumulator >> 4;
+            if upper_nibble > 9 || old_c || step1_carry {
                 (accumulator, step2_carry) = accumulator.overflowing_add(0x60);
             }
-                current_state
-                    .condition_bits
-                    .set_c(step1_carry | step2_carry | old_c);
+            current_state
+                .condition_bits
+                .set_c(step1_carry | step2_carry | old_c);
             current_state.condition_bits.set_z(accumulator == 0);
             current_state
                 .condition_bits
@@ -401,10 +419,394 @@ pub fn read_instruction(mut current_state: State) -> State {
                 .set_s(accumulator & 0x80 == 0x80);
             current_state.registers.A = accumulator;
         }
-
+        0x28 => { /* NOP */ }
+        0x29 => {
+            // DAD H
+            let hl = current_state.registers.get_hl();
+            let res = hl << 1;
+            current_state.registers.set_hl(res);
+            current_state.condition_bits.set_c(res < hl);
+        }
+        0x2a => {
+            // LHLD adr
+            let address = ((code[2] as u16) << 8) | code[1] as u16;
+            current_state.registers.L = current_state.memory[address as usize];
+            current_state.registers.H = current_state.memory[address as usize + 1];
+            pc += 2
+        }
+        0x2b => {
+            // DCX H
+            let res = current_state.registers.get_hl().wrapping_sub(1);
+            current_state.registers.set_hl(res);
+        }
+        0x2c => {
+            // INR L
+            current_state.registers.L =
+                inr_instruction(current_state.registers.L, &mut current_state.condition_bits);
+        }
+        0x2d => {
+            // DCR L
+            current_state.registers.L =
+                dcr_instruction(current_state.registers.L, &mut current_state.condition_bits);
+        }
+        0x2e => {
+            // MVI L, D8
+            current_state.registers.L = code[1];
+            pc += 1
+        }
+        0x2f => {
+            // CMA
+            current_state.registers.A = !current_state.registers.A;
+        }
+        0x30 => { /* NOP */ }
         0x31 => {
+            // LXI SP, D16
             current_state.sp = (code[2] as u16) << 8 | code[1] as u16;
             pc += 2
+        }
+        0x32 => {
+            // STA adr
+            let address = (code[2] as u16) << 8 | code[1] as u16;
+            current_state.memory[address as usize] = current_state.registers.A;
+            pc += 2;
+        }
+        0x33 => {
+            // INX SP
+            current_state.sp = current_state.sp.wrapping_add(1);
+        }
+        0x34 => {
+            // INR M
+            let address = current_state.registers.get_hl();
+            let val = current_state.memory[address as usize];
+            let res = inr_instruction(val, &mut current_state.condition_bits);
+            current_state.memory[address as usize] = res;
+        }
+        0x35 => {
+            // DCR M
+            let address = current_state.registers.get_hl();
+            let val = current_state.memory[address as usize];
+            let res = dcr_instruction(val, &mut current_state.condition_bits);
+            current_state.memory[address as usize] = res;
+        }
+        0x36 => {
+            // MVI M, D8
+            let address = current_state.registers.get_hl();
+            current_state.memory[address as usize] = code[1];
+            pc += 1
+        }
+        0x37 => {
+            // STC
+            current_state.condition_bits.set_c(true);
+        }
+        0x38 => { /* NOP */ }
+        0x39 => {
+            // DAD SP
+            let hl = current_state.registers.get_hl();
+            let sp = current_state.sp;
+            let (res, carry) = hl.overflowing_add(sp);
+            current_state.registers.set_hl(res);
+            current_state.condition_bits.set_c(carry);
+        }
+        0x3a => {
+            // LDA adr
+            let address = (code[2] as u16) << 8 | code[1] as u16;
+            current_state.registers.A = current_state.memory[address as usize];
+            pc += 2;
+        }
+        0x3b => {
+            // DCX SP
+            current_state.sp = current_state.sp.wrapping_sub(1);
+        }
+        0x3c => {
+            // INR A
+            current_state.registers.A =
+                inr_instruction(current_state.registers.A, &mut current_state.condition_bits);
+        }
+        0x3d => {
+            // DCR A
+            current_state.registers.A =
+                dcr_instruction(current_state.registers.A, &mut current_state.condition_bits);
+        }
+        0x3e => {
+            // MVI A, D8
+            current_state.registers.A = code[1];
+            pc += 1
+        }
+        0x3f => {
+            // CMC
+            current_state
+                .condition_bits
+                .set_c(!current_state.condition_bits.c());
+        }
+        0x40 => {
+            // MOV B, B
+            current_state.registers.B = current_state.registers.B;
+        }
+        0x41 => {
+            // MOV B, C
+            current_state.registers.B = current_state.registers.C;
+        }
+        0x42 => {
+            // MOV B, D
+            current_state.registers.B = current_state.registers.D;
+        }
+        0x43 => {
+            // MOV B, E
+            current_state.registers.B = current_state.registers.E;
+        }
+        0x44 => {
+            // MOV B, H
+            current_state.registers.B = current_state.registers.H;
+        }
+        0x45 => {
+            // MOV B, L
+            current_state.registers.B = current_state.registers.L;
+        }
+        0x46 => {
+            // MOV B, M
+            let address = current_state.registers.get_hl();
+            current_state.registers.B = current_state.memory[address as usize];
+        }
+        0x47 => {
+            // MOV B, A
+            current_state.registers.B = current_state.registers.A;
+        }
+        0x48 => {
+            // MOV C, B
+            current_state.registers.C = current_state.registers.B;
+        }
+        0x49 => {
+            // MOV C, C
+            current_state.registers.C = current_state.registers.C;
+        }
+        0x4a => {
+            // MOV C, D
+            current_state.registers.C = current_state.registers.D;
+        }
+        0x4b => {
+            // MOV C, E
+            current_state.registers.C = current_state.registers.E;
+        }
+        0x4c => {
+            // MOV C, H
+            current_state.registers.C = current_state.registers.H;
+        }
+        0x4d => {
+            // MOV C, L
+            current_state.registers.C = current_state.registers.L;
+        }
+        0x4e => {
+            // MOV C, M
+            let address = current_state.registers.get_hl();
+            current_state.registers.C = current_state.memory[address as usize];
+        }
+        0x4f => {
+            // MOV C, A
+            current_state.registers.C = current_state.registers.A;
+        }
+        0x50 => {
+            // MOV D, B
+            current_state.registers.D = current_state.registers.B;
+        }
+        0x51 => {
+            // MOV D, C
+            current_state.registers.D = current_state.registers.C;
+        }
+        0x52 => {
+            // MOV D, D
+            current_state.registers.D = current_state.registers.D;
+        }
+        0x53 => {
+            // MOV D, E
+            current_state.registers.D = current_state.registers.E;
+        }
+        0x54 => {
+            // MOV D, H
+            current_state.registers.D = current_state.registers.H;
+        }
+        0x55 => {
+            // MOV D, L
+            current_state.registers.D = current_state.registers.L;
+        }
+        0x56 => {
+            // MOV D, M
+            let address = current_state.registers.get_hl();
+            current_state.registers.D = current_state.memory[address as usize];
+        }
+        0x57 => {
+            // MOV D, A
+            current_state.registers.D = current_state.registers.A;
+        }
+        0x58 => {
+            // MOV E, B
+            current_state.registers.E = current_state.registers.B;
+        }
+        0x59 => {
+            // MOV E, C
+            current_state.registers.E = current_state.registers.C;
+        }
+        0x5a => {
+            // MOV E, D
+            current_state.registers.E = current_state.registers.D;
+        }
+        0x5b => {
+            // MOV E, E
+            current_state.registers.E = current_state.registers.E;
+        }
+        0x5c => {
+            // MOV E, H
+            current_state.registers.E = current_state.registers.H;
+        }
+        0x5d => {
+            // MOV E, L
+            current_state.registers.E = current_state.registers.L;
+        }
+        0x5e => {
+            // MOV E, M
+            let address = current_state.registers.get_hl();
+            current_state.registers.E = current_state.memory[address as usize];
+        }
+        0x5f => {
+            // MOV E, A
+            current_state.registers.E = current_state.registers.A;
+        }
+        0x60 => {
+            // MOV H, B
+            current_state.registers.H = current_state.registers.B;
+        }
+        0x61 => {
+            // MOV H, C
+            current_state.registers.H = current_state.registers.C;
+        }
+        0x62 => {
+            // MOV H, D
+            current_state.registers.H = current_state.registers.D;
+        }
+        0x63 => {
+            // MOV H, E
+            current_state.registers.H = current_state.registers.E;
+        }
+        0x64 => {
+            // MOV H, H
+            current_state.registers.H = current_state.registers.H;
+        }
+        0x65 => {
+            // MOV H, L
+            current_state.registers.H = current_state.registers.L;
+        }
+        0x66 => {
+            // MOV H, M
+            let address = current_state.registers.get_hl();
+            current_state.registers.H = current_state.memory[address as usize];
+        }
+        0x67 => {
+            // MOV H, A
+            current_state.registers.H = current_state.registers.A;
+        }
+        0x68 => {
+            // MOV L, B
+            current_state.registers.L = current_state.registers.B;
+        }
+        0x69 => {
+            // MOV L, C
+            current_state.registers.L = current_state.registers.C;
+        }
+        0x6a => {
+            // MOV L, D
+            current_state.registers.L = current_state.registers.D;
+        }
+        0x6b => {
+            // MOV L, E
+            current_state.registers.L = current_state.registers.E;
+        }
+        0x6c => {
+            // MOV L, H
+            current_state.registers.L = current_state.registers.H;
+        }
+        0x6d => {
+            // MOV L, L
+            current_state.registers.L = current_state.registers.L;
+        }
+        0x6e => {
+            // MOV L, M
+            let address = current_state.registers.get_hl();
+            current_state.registers.L = current_state.memory[address as usize];
+        }
+        0x6f => {
+            // MOV L, A
+            current_state.registers.L = current_state.registers.A;
+        }
+        0x70 => {
+            // MOV M, B
+            let address = current_state.registers.get_hl();
+            current_state.memory[address as usize] = current_state.registers.B;
+        }
+        0x71 => {
+            // MOV M, C
+            let address = current_state.registers.get_hl();
+            current_state.memory[address as usize] = current_state.registers.C;
+        }
+        0x72 => {
+            // MOV M, D
+            let address = current_state.registers.get_hl();
+            current_state.memory[address as usize] = current_state.registers.D;
+        }
+        0x73 => {
+            // MOV M, E
+            let address = current_state.registers.get_hl();
+            current_state.memory[address as usize] = current_state.registers.E;
+        }
+        0x74 => {
+            // MOV M, H
+            let address = current_state.registers.get_hl();
+            current_state.memory[address as usize] = current_state.registers.H;
+        }
+        0x75 => {
+            // MOV M, L
+            let address = current_state.registers.get_hl();
+            current_state.memory[address as usize] = current_state.registers.L;
+        }
+        0x76 => {
+            // HLT
+            current_state.cpu_state = CPUState::HALTED;
+        }
+        0x77 => {
+            // MOV M, A
+            let address = current_state.registers.get_hl();
+            current_state.memory[address as usize] = current_state.registers.A;
+        }
+        0x78 => {
+            // MOV A, B
+            current_state.registers.A = current_state.registers.B;
+        }
+        0x79 => {
+            // MOV A, C
+            current_state.registers.A = current_state.registers.C;
+        }
+        0x7a => {
+            // MOV A, D
+            current_state.registers.A = current_state.registers.D;
+        }
+        0x7b => {
+            // MOV A, E
+            current_state.registers.A = current_state.registers.E;
+        }
+        0x7c => {
+            // MOV A, H
+            current_state.registers.A = current_state.registers.H;
+        }
+        0x7d => {
+            // MOV A, L
+            current_state.registers.A = current_state.registers.L;
+        }
+        0x7e => {
+            // MOV A, M
+            let address = current_state.registers.get_hl();
+            current_state.registers.A = current_state.memory[address as usize];
+        }
+        0x7f => {
+            // MOV A, A
+            current_state.registers.A = current_state.registers.A;
         }
         0xc3 => pc = (((code[2] as u16) << 8) | code[1] as u16) as usize,
         _ => undefined_instruction(code[0], pc as u16),

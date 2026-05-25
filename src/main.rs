@@ -1,6 +1,8 @@
 mod disassembler;
 use disassembler::disassemble_file;
 
+use crate::cpu::CPUState;
+
 mod cpu;
 
 fn main() {
@@ -22,7 +24,10 @@ fn main() {
     let mut state = cpu::init(total_buffer.to_vec());
 
     loop {
-        state = cpu::read_instruction(state);
+        match state.cpu_state {
+            CPUState::RUNNING => state = cpu::read_instruction(state),
+            CPUState::HALTED => {}
+        }
     }
 }
 
