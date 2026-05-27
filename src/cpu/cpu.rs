@@ -363,7 +363,7 @@ pub fn read_instruction(mut current_state: State) -> State {
             // SHLD adr
             let address = ((code[2] as u16) << 8) | code[1] as u16;
             current_state.memory[address as usize] = current_state.registers.L;
-            current_state.memory[address as usize + 1] = current_state.registers.H;
+            current_state.memory[address.wrapping_add(1) as usize] = current_state.registers.H;
             pc += 2
         }
         0x23 => {
@@ -431,7 +431,7 @@ pub fn read_instruction(mut current_state: State) -> State {
             // LHLD adr
             let address = ((code[2] as u16) << 8) | code[1] as u16;
             current_state.registers.L = current_state.memory[address as usize];
-            current_state.registers.H = current_state.memory[address as usize + 1];
+            current_state.registers.H = current_state.memory[address.wrapping_add(1) as usize];
             pc += 2
         }
         0x2b => {
@@ -808,6 +808,303 @@ pub fn read_instruction(mut current_state: State) -> State {
             // MOV A, A
             current_state.registers.A = current_state.registers.A;
         }
+        0x80 => {
+            // ADD B
+            current_state.registers.A = add_instruction(
+                current_state.registers.A,
+                current_state.registers.B,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0x81 => {
+            // ADD C
+            current_state.registers.A = add_instruction(
+                current_state.registers.A,
+                current_state.registers.C,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0x82 => {
+            // ADD D
+            current_state.registers.A = add_instruction(
+                current_state.registers.A,
+                current_state.registers.D,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0x83 => {
+            // ADD E
+            current_state.registers.A = add_instruction(
+                current_state.registers.A,
+                current_state.registers.E,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0x84 => {
+            // ADD H
+            current_state.registers.A = add_instruction(
+                current_state.registers.A,
+                current_state.registers.H,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0x85 => {
+            // ADD L
+            current_state.registers.A = add_instruction(
+                current_state.registers.A,
+                current_state.registers.L,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0x86 => {
+            // ADD M
+            let address = current_state.registers.get_hl();
+            let value = current_state.memory[address as usize];
+            current_state.registers.A = add_instruction(
+                current_state.registers.A,
+                value,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0x87 => {
+            // ADD A
+            current_state.registers.A = add_instruction(
+                current_state.registers.A,
+                current_state.registers.A,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0x88 => {
+            // ADC B
+            current_state.registers.A = add_instruction(
+                current_state.registers.A,
+                current_state.registers.B,
+                current_state.condition_bits.c(),
+                &mut current_state.condition_bits,
+            );
+        }
+        0x89 => {
+            // ADC C
+            current_state.registers.A = add_instruction(
+                current_state.registers.A,
+                current_state.registers.C,
+                current_state.condition_bits.c(),
+                &mut current_state.condition_bits,
+            );
+        }
+        0x8a => {
+            // ADC D
+            current_state.registers.A = add_instruction(
+                current_state.registers.A,
+                current_state.registers.D,
+                current_state.condition_bits.c(),
+                &mut current_state.condition_bits,
+            );
+        }
+        0x8b => {
+            // ADC E
+            current_state.registers.A = add_instruction(
+                current_state.registers.A,
+                current_state.registers.E,
+                current_state.condition_bits.c(),
+                &mut current_state.condition_bits,
+            );
+        }
+        0x8c => {
+            // ADC H
+            current_state.registers.A = add_instruction(
+                current_state.registers.A,
+                current_state.registers.H,
+                current_state.condition_bits.c(),
+                &mut current_state.condition_bits,
+            );
+        }
+        0x8d => {
+            // ADC L
+            current_state.registers.A = add_instruction(
+                current_state.registers.A,
+                current_state.registers.L,
+                current_state.condition_bits.c(),
+                &mut current_state.condition_bits,
+            );
+        }
+        0x8e => {
+            // ADC M
+            let address = current_state.registers.get_hl();
+            let value = current_state.memory[address as usize];
+            current_state.registers.A = add_instruction(
+                current_state.registers.A,
+                value,
+                current_state.condition_bits.c(),
+                &mut current_state.condition_bits,
+            );
+        }
+        0x8f => {
+            // ADC A
+            current_state.registers.A = add_instruction(
+                current_state.registers.A,
+                current_state.registers.A,
+                current_state.condition_bits.c(),
+                &mut current_state.condition_bits,
+            );
+        }
+        0x90 => {
+            // SUB B
+            current_state.registers.A = sub_instruction(
+                current_state.registers.A,
+                current_state.registers.B,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0x91 => {
+            // SUB C
+            current_state.registers.A = sub_instruction(
+                current_state.registers.A,
+                current_state.registers.C,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0x92 => {
+            // SUB D
+            current_state.registers.A = sub_instruction(
+                current_state.registers.A,
+                current_state.registers.D,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0x93 => {
+            // SUB E
+            current_state.registers.A = sub_instruction(
+                current_state.registers.A,
+                current_state.registers.E,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0x94 => {
+            // SUB H
+            current_state.registers.A = sub_instruction(
+                current_state.registers.A,
+                current_state.registers.H,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0x95 => {
+            // SUB L
+            current_state.registers.A = sub_instruction(
+                current_state.registers.A,
+                current_state.registers.L,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0x96 => {
+            // SUB M
+            let address = current_state.registers.get_hl();
+            let value = current_state.memory[address as usize];
+            current_state.registers.A = sub_instruction(
+                current_state.registers.A,
+                value,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0x97 => {
+            // SUB A
+            current_state.registers.A = sub_instruction(
+                current_state.registers.A,
+                current_state.registers.A,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0x98 => {
+            // SBB B
+            current_state.registers.A = sub_instruction(
+                current_state.registers.A,
+                current_state.registers.B,
+                current_state.condition_bits.c(),
+                &mut current_state.condition_bits,
+            );
+        }
+        0x99 => {
+            // SBB C
+            current_state.registers.A = sub_instruction(
+                current_state.registers.A,
+                current_state.registers.C,
+                current_state.condition_bits.c(),
+                &mut current_state.condition_bits,
+            );
+        }
+        0x9a => {
+            // SBB D
+            current_state.registers.A = sub_instruction(
+                current_state.registers.A,
+                current_state.registers.D,
+                current_state.condition_bits.c(),
+                &mut current_state.condition_bits,
+            );
+        }
+        0x9b => {
+            // SBB E
+            current_state.registers.A = sub_instruction(
+                current_state.registers.A,
+                current_state.registers.E,
+                current_state.condition_bits.c(),
+                &mut current_state.condition_bits,
+            );
+        }
+        0x9c => {
+            // SBB H
+            current_state.registers.A = sub_instruction(
+                current_state.registers.A,
+                current_state.registers.H,
+                current_state.condition_bits.c(),
+                &mut current_state.condition_bits,
+            );
+        }
+        0x9d => {
+            // SBB L
+            current_state.registers.A = sub_instruction(
+                current_state.registers.A,
+                current_state.registers.L,
+                current_state.condition_bits.c(),
+                &mut current_state.condition_bits,
+            );
+        }
+        0x9e => {
+            // SBB M
+            let address = current_state.registers.get_hl();
+            let value = current_state.memory[address as usize];
+            current_state.registers.A = sub_instruction(
+                current_state.registers.A,
+                value,
+                current_state.condition_bits.c(),
+                &mut current_state.condition_bits,
+            );
+        }
+        0x9f => {
+            // SBB A
+            current_state.registers.A = sub_instruction(
+                current_state.registers.A,
+                current_state.registers.A,
+                current_state.condition_bits.c(),
+                &mut current_state.condition_bits,
+            );
+        }
+
         0xc3 => pc = (((code[2] as u16) << 8) | code[1] as u16) as usize,
         _ => undefined_instruction(code[0], pc as u16),
     }

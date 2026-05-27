@@ -25,3 +25,39 @@ pub fn dcr_instruction(current_val: u8, condition_bits: &mut ConditionBits) -> u
     condition_bits.set_ac((current_val & 0x0F) == 0x00);
     res
 }
+
+pub fn add_instruction(
+    current_val: u8,
+    value: u8,
+    carry_in: bool,
+    condition_bits: &mut ConditionBits,
+) -> u8 {
+    let sum: u16 = (current_val as u16) + (value as u16) + (carry_in as u16);
+    let res = sum as u8;
+    condition_bits.set_z(res == 0);
+    condition_bits.set_c(sum > 0xFF);
+    condition_bits.set_p(res.count_ones() % 2 == 0);
+    condition_bits.set_s(res & 0x80 == 0x80);
+    condition_bits.set_ac(((current_val & 0x0F) + (value & 0x0F) + (carry_in as u8)) > 0x0F);
+    res
+}
+
+pub fn sub_instruction(
+    current_val: u8,
+    value: u8,
+    borrow_in: bool,
+    condition_bits: &mut ConditionBits,
+) -> u8 {
+    let subtrahend = (value as u16) + (borrow_in as u16);
+    let (res, borrow) = (current_val as u16).overflowing_sub(subtrahend);
+
+    condition_bits.set_z(res as u8 == 0);
+    condition_bits.set_c(borrow); // carry = borrow for SUB/SBB
+    condition_bits.set_p((res as u8).count_ones() % 2 == 0);
+    condition_bits.set_s((res as u8) & 0x80 == 0x80);
+
+    let ac = ((current_val & 0x0F) as i16) - ((value & 0x0F) as i16) - (borrow_in as i16) < 0;
+    condition_bits.set_ac(ac);
+
+    res as u8
+}
