@@ -1104,6 +1104,278 @@ pub fn read_instruction(mut current_state: State) -> State {
                 &mut current_state.condition_bits,
             );
         }
+        0xa0 => {
+            // ANA B
+            current_state.registers.A = and_instruction(
+                current_state.registers.A,
+                current_state.registers.B,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xa1 => {
+            // ANA C
+            current_state.registers.A = and_instruction(
+                current_state.registers.A,
+                current_state.registers.C,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xa2 => {
+            // ANA D
+            current_state.registers.A = and_instruction(
+                current_state.registers.A,
+                current_state.registers.D,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xa3 => {
+            // ANA E
+            current_state.registers.A = and_instruction(
+                current_state.registers.A,
+                current_state.registers.E,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xa4 => {
+            // ANA H
+            current_state.registers.A = and_instruction(
+                current_state.registers.A,
+                current_state.registers.H,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xa5 => {
+            // ANA L
+            current_state.registers.A = and_instruction(
+                current_state.registers.A,
+                current_state.registers.L,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xa6 => {
+            // ANA M
+            let address = current_state.registers.get_hl();
+            let value = current_state.memory[address as usize];
+            current_state.registers.A = and_instruction(
+                current_state.registers.A,
+                value,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xa7 => {
+            // ANA A
+            current_state.registers.A = and_instruction(
+                current_state.registers.A,
+                current_state.registers.A,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xa8 => {
+            // XRA B
+            current_state.registers.A = xor_instruction(
+                current_state.registers.A,
+                current_state.registers.B,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xa9 => {
+            // XRA C
+            current_state.registers.A = xor_instruction(
+                current_state.registers.A,
+                current_state.registers.C,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xaa => {
+            // XRA D
+            current_state.registers.A = xor_instruction(
+                current_state.registers.A,
+                current_state.registers.D,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xab => {
+            // XRA E
+            current_state.registers.A = xor_instruction(
+                current_state.registers.A,
+                current_state.registers.E,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xac => {
+            // XRA H
+            current_state.registers.A = xor_instruction(
+                current_state.registers.A,
+                current_state.registers.H,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xad => {
+            // XRA L
+            current_state.registers.A = xor_instruction(
+                current_state.registers.A,
+                current_state.registers.L,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xae => {
+            // XRA M
+            let address = current_state.registers.get_hl();
+            let value = current_state.memory[address as usize];
+            current_state.registers.A = xor_instruction(
+                current_state.registers.A,
+                value,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xaf => {
+            // XRA A
+            current_state.registers.A = xor_instruction(
+                current_state.registers.A,
+                current_state.registers.A,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xb0 => {
+            // ORA B
+            current_state.registers.A = or_instruction(
+                current_state.registers.A,
+                current_state.registers.B,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xb1 => {
+            // ORA C
+            current_state.registers.A = or_instruction(
+                current_state.registers.A,
+                current_state.registers.C,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xb2 => {
+            // ORA D
+            current_state.registers.A = or_instruction(
+                current_state.registers.A,
+                current_state.registers.D,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xb3 => {
+            // ORA E
+            current_state.registers.A = or_instruction(
+                current_state.registers.A,
+                current_state.registers.E,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xb4 => {
+            // ORA H
+            current_state.registers.A = or_instruction(
+                current_state.registers.A,
+                current_state.registers.H,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xb5 => {
+            // ORA L
+            current_state.registers.A = or_instruction(
+                current_state.registers.A,
+                current_state.registers.L,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xb6 => {
+            // ORA M
+            let address = current_state.registers.get_hl();
+            let value = current_state.memory[address as usize];
+            current_state.registers.A = or_instruction(
+                current_state.registers.A,
+                value,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xb7 => {
+            // ORA A
+            current_state.registers.A = or_instruction(
+                current_state.registers.A,
+                current_state.registers.A,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xb8 => {
+            // CMP B - Performed as a subtraction that does not modify registers, only updates condition bits
+            sub_instruction(
+                current_state.registers.A,
+                current_state.registers.B,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xb9 => {
+            // CMP C
+            sub_instruction(
+                current_state.registers.A,
+                current_state.registers.C,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xba => {
+            // CMP D
+            sub_instruction(
+                current_state.registers.A,
+                current_state.registers.D,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xbb => {
+            // CMP E
+            sub_instruction(
+                current_state.registers.A,
+                current_state.registers.E,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xbc => {
+            // CMP H
+            sub_instruction(
+                current_state.registers.A,
+                current_state.registers.H,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xbd => {
+            // CMP L
+            sub_instruction(
+                current_state.registers.A,
+                current_state.registers.L,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xbe => {
+            // CMP M
+            let address = current_state.registers.get_hl();
+            let value = current_state.memory[address as usize];
+            sub_instruction(
+                current_state.registers.A,
+                value,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
+        0xbf => {
+            // CMP A
+            sub_instruction(
+                current_state.registers.A,
+                current_state.registers.A,
+                false,
+                &mut current_state.condition_bits,
+            );
+        }
 
         0xc3 => pc = (((code[2] as u16) << 8) | code[1] as u16) as usize,
         _ => undefined_instruction(code[0], pc as u16),

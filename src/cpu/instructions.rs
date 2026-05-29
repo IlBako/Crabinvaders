@@ -61,3 +61,33 @@ pub fn sub_instruction(
 
     res as u8
 }
+
+pub fn and_instruction(current_val: u8, value: u8, condition_bits: &mut ConditionBits) -> u8 {
+    let res = current_val & value;
+    condition_bits.set_z(res == 0);
+    condition_bits.set_c(false);
+    condition_bits.set_ac(false);
+    condition_bits.set_p(res.count_ones() % 2 == 0);
+    condition_bits.set_s(res & 0x80 == 0x80);
+    res
+}
+
+pub fn xor_instruction(current_val: u8, value: u8, condition_bits: &mut ConditionBits) -> u8 {
+    let res = current_val ^ value;
+    condition_bits.set_z(res == 0);
+    condition_bits.set_c(false);
+    condition_bits.set_ac(false);
+    condition_bits.set_p(res.count_ones() % 2 == 0);
+    condition_bits.set_s(res & 0x80 == 0x80);
+    res
+}
+
+pub fn or_instruction(current_val: u8, value: u8, condition_bits: &mut ConditionBits) -> u8 {
+    let res = current_val | value;
+    condition_bits.set_z(res == 0);
+    condition_bits.set_c(false);
+    condition_bits.set_ac(false);
+    condition_bits.set_p(res.count_ones() % 2 == 0);
+    condition_bits.set_s(res & 0x80 == 0x80);
+    res
+}
