@@ -1376,8 +1376,176 @@ pub fn read_instruction(mut current_state: State) -> State {
                 &mut current_state.condition_bits,
             );
         }
+        0xc0 => {
+            // RNZ
+            if !current_state.condition_bits.z() {
+                ret_instruction(
+                    &mut current_state.pc,
+                    &mut current_state.sp,
+                    &mut current_state.memory,
+                );
+            }
+        }
+        0xc1 => {
+            // POP B
+            current_state.registers.C = current_state.memory[current_state.sp as usize];
+            current_state.registers.B =
+                current_state.memory[current_state.sp.wrapping_add(1) as usize];
+            current_state.sp = current_state.sp.wrapping_add(2);
+        }
+        0xc2 => {
+            // JNZ, adr
+            if !current_state.condition_bits.z() {
+                pc = (((code[2] as u16) << 8) | code[1] as u16) as usize;
+            } else {
+                pc += 2;
+            }
+        }
+        0xc3 => {
+            // JMP adr
+            pc = (((code[2] as u16) << 8) | code[1] as u16) as usize;
+        }
+        0xc4 => {
+            // CNZ adr
+            if !current_state.condition_bits.z() {
+                let address = (((code[2] as u16) << 8) | code[1] as u16) as u16;
+                call_instruction(
+                    &mut current_state.pc,
+                    &mut current_state.sp,
+                    &mut current_state.memory,
+                    address,
+                    pc.wrapping_add(2) as u16,
+                );
+            } else {
+                pc += 2;
+            }
+        }
+        0xc5 => {
+            // PUSH B
+            current_state.sp = current_state.sp.wrapping_sub(1);
+            current_state.memory[current_state.sp as usize] = current_state.registers.B;
+            current_state.sp = current_state.sp.wrapping_sub(1);
+            current_state.memory[current_state.sp as usize] = current_state.registers.C;
+        }
+        0xc6 => {
+            current_state.registers.A = add_instruction(
+                current_state.registers.A,
+                code[1],
+                false,
+                &mut current_state.condition_bits,
+            );
+            pc += 1;
+        }
+        0xc7 => {
+            // RST 0
+            let address = 0x0000;
+            call_instruction(
+                &mut current_state.pc,
+                &mut current_state.sp,
+                &mut current_state.memory,
+                address,
+                pc as u16,
+            );
+        }
+        0xc8 => {
+            // RZ
+            if current_state.condition_bits.z() {
+                ret_instruction(
+                    &mut current_state.pc,
+                    &mut current_state.sp,
+                    &mut current_state.memory,
+                );
+            }
+        }
+        0xc9 => {
+            // RET
+            ret_instruction(
+                &mut current_state.pc,
+                &mut current_state.sp,
+                &mut current_state.memory,
+            );
+        }
+        0xca => {
+            // JZ adr
+            if current_state.condition_bits.z() {
+                pc = (((code[2] as u16) << 8) | code[1] as u16) as usize;
+            } else {
+                pc += 2;
+            }
+        }
+        0xcc => {
+            // CZ adr
+            if current_state.condition_bits.z() {
+                let address = (((code[2] as u16) << 8) | code[1] as u16) as u16;
+                call_instruction(
+                    &mut current_state.pc,
+                    &mut current_state.sp,
+                    &mut current_state.memory,
+                    address,
+                    pc.wrapping_add(2) as u16,
+                );
+            } else {
+                pc += 2;
+            }
+        }
+        0xcd => {
+            // CALL adr
+            let address = (((code[2] as u16) << 8) | code[1] as u16) as u16;
+            call_instruction(
+                &mut current_state.pc,
+                &mut current_state.sp,
+                &mut current_state.memory,
+                address,
+                pc.wrapping_add(2) as u16,
+            );
+        }
+        0xce => {
+            // ACI d8
+            current_state.registers.A = add_instruction(
+                current_state.registers.A,
+                code[1],
+                current_state.condition_bits.c(),
+                &mut current_state.condition_bits,
+            );
+            pc += 1;
+        }
+        0xcf => {
+            // RST 1
+            let address = 0x0008;
+            call_instruction(
+                &mut current_state.pc,
+                &mut current_state.sp,
+                &mut current_state.memory,
+                address,
+                pc as u16,
+            );
+        }
+        0xd0 => {
+            // RNC
+            if !current_state.condition_bits.c() {
+                ret_instruction(
+                    &mut current_state.pc,
+                    &mut current_state.sp,
+                    &mut current_state.memory,
+                );
+            }
+        }
+        0xd1 => {
+            // POP D
+            current_state.registers.E = current_state.memory[current_state.sp as usize];
+            current_state.registers.D =
+                current_state.memory[current_state.sp.wrapping_add(1) as usize];
+            current_state.sp = current_state.sp.wrapping_add(2);
+        }
+        0xd2 => {
+            // JNC adr
+            if !current_state.condition_bits.c() {
+                pc = (((code[2] as u16) << 8) | code[1] as u16) as usize;
+            } else {
+                pc += 2;
+            }
+        }
 
-        0xc3 => pc = (((code[2] as u16) << 8) | code[1] as u16) as usize,
         _ => undefined_instruction(code[0], pc as u16),
     }
 

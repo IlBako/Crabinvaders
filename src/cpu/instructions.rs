@@ -91,3 +91,27 @@ pub fn or_instruction(current_val: u8, value: u8, condition_bits: &mut Condition
     condition_bits.set_s(res & 0x80 == 0x80);
     res
 }
+
+pub fn ret_instruction(pc: &mut u16, sp: &mut u16, memory: &mut [u8]) {
+    let lower_nibble = memory[*sp as usize] as u16;
+    *sp = sp.wrapping_add(1);
+    let upper_nibble = memory[*sp as usize] as u16;
+    *sp = sp.wrapping_add(1);
+    *pc = (upper_nibble << 8) | lower_nibble;
+}
+
+pub fn call_instruction(
+    pc: &mut u16,
+    sp: &mut u16,
+    memory: &mut [u8],
+    address: u16,
+    return_address: u16,
+) {
+    let lower_nibble = (return_address & 0x00FF) as u8;
+    let upper_nibble = (return_address >> 8) as u8;
+    *sp = sp.wrapping_sub(1);
+    memory[*sp as usize] = upper_nibble;
+    *sp = sp.wrapping_sub(1);
+    memory[*sp as usize] = lower_nibble;
+    *pc = address;
+}
