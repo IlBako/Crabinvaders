@@ -1,0 +1,6 @@
+[target.x86_64-pc-windows-gnu]
+linker = "gcc"
+rustflags = [
+    "-L", "C:\\msys64\\ucrt64\\lib", 
+    "-l", "SDL2"
+]

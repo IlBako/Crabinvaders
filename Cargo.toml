@@ -1,6 +1,22 @@
 [package]
-name = "emulator"
+name = "crabinvaders"
 version = "0.1.0"
+authors = ["Pier Francesco Bachini <pier.bachini@gmail.com>"]
 edition = "2024"
+license = "AGPL-3.0-or-later"
+default-run = "crabinvaders"
+
+[lib]
+name = "emulator"
+path = "src/lib.rs"
+
+[[bin]]
+name = "crabinvaders"
+path = "src/bin/main.rs"
+
+[[bin]]
+name = "disassembler"
+path = "src/bin/main_disassembler.rs"
 
 [dependencies]
+sdl2 = "0.37"

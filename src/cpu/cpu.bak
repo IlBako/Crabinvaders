@@ -1,191 +1,4 @@
-use std::fmt::{self, Binary};
-
 use super::instructions::*;
-
-#[allow(non_snake_case)]
-#[derive(Default)]
-struct Registers {
-    A: u8,
-    B: u8,
-    C: u8,
-    D: u8,
-    E: u8,
-    H: u8,
-    L: u8,
-}
-
-impl Registers {
-    fn get_bc(&self) -> u16 {
-        ((self.B as u16) << 8) | self.C as u16
-    }
-    fn get_de(&self) -> u16 {
-        ((self.D as u16) << 8) | self.E as u16
-    }
-    fn get_hl(&self) -> u16 {
-        ((self.H as u16) << 8) | self.L as u16
-    }
-
-    fn set_bc(&mut self, val: u16) {
-        self.B = (val >> 8) as u8;
-        self.C = val as u8;
-    }
-    fn set_de(&mut self, val: u16) {
-        self.D = (val >> 8) as u8;
-        self.E = val as u8;
-    }
-    fn set_hl(&mut self, val: u16) {
-        self.H = (val >> 8) as u8;
-        self.L = val as u8;
-    }
-}
-
-pub struct ConditionBits {
-    bits: u8,
-}
-
-pub struct State {
-    registers: Registers,
-    memory: Vec<u8>,
-    pub pc: u16,
-    sp: u16,
-    pub(crate) condition_bits: ConditionBits,
-    pub cpu_state: CPUState,
-    // interrupt_enabled: bool,
-}
-
-pub enum CPUState {
-    RUNNING,
-    HALTED,
-}
-
-impl State {
-    fn new() -> State {
-        State {
-            registers: Registers::default(),
-            memory: vec![0; 0x10000],
-            pc: 0,
-            sp: 0,
-            condition_bits: ConditionBits::default(),
-            cpu_state: CPUState::RUNNING,
-            // interrupted: false,
-        }
-    }
-}
-
-impl Default for ConditionBits {
-    fn default() -> Self {
-        Self { bits: 0b0000_0010 }
-    }
-}
-
-impl fmt::Display for ConditionBits {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "sign: {},\nzero: {},\nac: {},\nparity: {},\ncarry: {}",
-            self.s(),
-            self.z(),
-            self.ac(),
-            self.p(),
-            self.c()
-        )
-    }
-}
-
-impl Binary for ConditionBits {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "0b{}{}0{}0{}1{}",
-            self.s() as u8,
-            self.z() as u8,
-            self.ac() as u8,
-            self.p() as u8,
-            self.c() as u8
-        )
-    }
-}
-
-#[allow(unused)]
-impl ConditionBits {
-    // Bit 7: Sign (s)
-    // Bit 6: Zero (z)
-    // Bit 5: 0
-    // Bit 4: Auxiliary carry (ac)
-    // Bit 3: 0
-    // Bit 2: Parity (p)
-    // Bit 1: 1
-    // Bit 0: Carry (c)
-
-    // Getters
-    fn c(&self) -> bool {
-        self.bits & 0x01 != 0
-    }
-    fn p(&self) -> bool {
-        self.bits & (0x01 << 2) != 0
-    }
-    fn ac(&self) -> bool {
-        self.bits & (0x01 << 4) != 0
-    }
-    fn z(&self) -> bool {
-        self.bits & (0x01 << 6) != 0
-    }
-    fn s(&self) -> bool {
-        self.bits & (0x01 << 7) != 0
-    }
-
-    // Setters
-    pub(crate) fn set_c(&mut self, value: bool) {
-        if value {
-            self.bits |= 0x01;
-        } else {
-            self.bits &= !0x01;
-        }
-    }
-    pub(crate) fn set_p(&mut self, value: bool) {
-        if value {
-            self.bits |= 0x01 << 2;
-        } else {
-            self.bits &= !(0x01 << 2);
-        }
-    }
-    pub(crate) fn set_ac(&mut self, value: bool) {
-        if value {
-            self.bits |= 0x01 << 4;
-        } else {
-            self.bits &= !(0x01 << 4);
-        }
-    }
-    pub(crate) fn set_z(&mut self, value: bool) {
-        if value {
-            self.bits |= 0x01 << 6;
-        } else {
-            self.bits &= !(0x01 << 6);
-        }
-    }
-    pub(crate) fn set_s(&mut self, value: bool) {
-        if value {
-            self.bits |= 0x01 << 7;
-        } else {
-            self.bits &= !(0x01 << 7);
-        }
-    }
-
-    fn set_bits(&mut self, value: u8) {
-        // Allows to set all the bits together while guaranteeing that bit 3 and 5 remain 0 and bit 1 remains 1
-        self.bits = (value & 0b1101_0111) | 0b0000_0010;
-    }
-}
-
-pub fn init(rom: Vec<u8>) -> State {
-    let mut state = State::new();
-    // Load ROM into a full 64KB memory buffer. If ROM is smaller, leave the
-    // remaining memory zeroed. If larger, truncate to 0x10000 bytes.
-    let max = state.memory.len();
-    let len = rom.len().min(max);
-    state.memory[..len].copy_from_slice(&rom[..len]);
-    state
-}
 
 #[allow(dead_code)]
 pub fn read_instruction(mut current_state: State) -> State {
@@ -1473,6 +1286,10 @@ pub fn read_instruction(mut current_state: State) -> State {
                 pc += 2;
             }
         }
+        0xcb => {
+            // JMP adr (alternative opcode)
+            pc = (((code[2] as u16) << 8) | code[1] as u16) as usize;
+        }
         0xcc => {
             // CZ adr
             if current_state.condition_bits.z() {
@@ -1952,8 +1769,6 @@ pub fn read_instruction(mut current_state: State) -> State {
                 pc as u16,
             );
         }
-
-        _ => undefined_instruction(code[0], pc as u16),
     }
 
     current_state.pc = pc as u16;
