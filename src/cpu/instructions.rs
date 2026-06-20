@@ -1205,6 +1205,7 @@ impl Cpu {
             0xD3 => {
                 // OUT d8 
                 undefined_instruction(0xD3, self.pc);
+                self.cycles += 6;
             }
             0xD4 => {
                 // CNC adr
@@ -1255,7 +1256,7 @@ impl Cpu {
             0xDB => {
                 // IN d8
                 undefined_instruction(0xDB, self.pc);
-                self.cycles += 3;
+                self.cycles += 6;
             }
             0xDC => {
                 // CC adr
@@ -1306,8 +1307,12 @@ impl Cpu {
                 self.cycles += 6;
             }
             0xE3 => {
-                // XTHL (unimplemented)
-                undefined_instruction(0xE3, self.pc);
+                // XTHL
+                let sp = bus.read_u16(self.sp);
+                let hl = get!(self, hl);
+                bus.write_u16(self.sp, hl);
+                set!(self, hl, sp);
+                self.cycles += 14;
             }
             0xE4 => {
                 // CPO adr
@@ -1355,8 +1360,11 @@ impl Cpu {
                 self.cycles += 6;
             }
             0xEB => {
-                // XCHG (unimplemented)
-                undefined_instruction(0xEB, self.pc);
+                // XCHG
+                let de = get!(self, de);
+                let hl = get!(self, hl);
+                set!(self, de, hl);
+                set!(self, hl, de);
             }
             0xEC => {
                 // CPE adr
@@ -1408,8 +1416,8 @@ impl Cpu {
                 self.cycles += 6;
             }
             0xF3 => {
-                // DI (unimplemented)
-                undefined_instruction(0xF3, self.pc);
+                // DI
+                self.ime = false;
             }
             0xF4 => {
                 // CP adr
@@ -1447,7 +1455,8 @@ impl Cpu {
             }
             0xF9 => {
                 // SPHL (unimplemented)
-                undefined_instruction(0xF9, self.pc);
+                self.sp = get!(self, hl);
+                self.cycles += 1;
             }
             0xFA => {
                 // JM adr
@@ -1458,8 +1467,8 @@ impl Cpu {
                 self.cycles += 6;
             }
             0xFB => {
-                // EI (unimplemented)
-                undefined_instruction(0xFB, self.pc);
+                // EI 
+                self.ime = true;
             }
             0xFC => {
                 // CM adr
