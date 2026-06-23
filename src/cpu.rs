@@ -80,3 +80,37 @@ impl Cpu {
         bus.read_u16(addr)
     }
 }
+
+/// Getters and setters exposed only for tests
+#[cfg(test)]
+impl Cpu {
+    pub fn get_pc(&self) -> u16 {
+        self.pc
+    }
+
+    pub fn set_pc(&mut self, pc: u16) {
+        self.pc = pc;
+    }
+
+    pub fn get_register(&self, reg: &str) -> u8 {
+        match reg {
+            "A" => self.registers.A,
+            "B" => self.registers.B,
+            "C" => self.registers.C,
+            "D" => self.registers.D,
+            "E" => self.registers.E,
+            "H" => self.registers.H,
+            "L" => self.registers.L,
+            _ => panic!("Invalid register: {}", reg),
+        }
+    }
+
+    pub fn get_register_pair(&self, reg_pair: &str) -> u16 {
+        match reg_pair {
+            "BC" => self.registers.get_bc(),
+            "DE" => self.registers.get_de(),
+            "HL" => self.registers.get_hl(),
+            _ => panic!("Invalid register pair: {}", reg_pair),
+        }
+    }
+}

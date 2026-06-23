@@ -2,5 +2,9 @@
 linker = "gcc"
 rustflags = [
     "-L", "C:\\msys64\\ucrt64\\lib", 
-    "-l", "SDL2"
+    "-l", "SDL2",
+    "-C", "force-frame-pointers=yes"
 ]
+
+[build]
+rustflags = ["-C", "force-frame-pointers=yes"]

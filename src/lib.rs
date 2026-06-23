@@ -11,3 +11,7 @@ pub mod cpu;
 pub mod hardware_impl;
 pub mod io;
 pub mod memory;
+
+// Test utilities
+#[cfg(test)]
+mod tests;
