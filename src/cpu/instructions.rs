@@ -1,12 +1,12 @@
 ﻿use super::*;
 
-pub fn undefined_instruction(instruction: u8, pc: u16) {
-    panic!(
-        "Undefined instruction {:#04x} at {:#06x}",
-        instruction,
-        pc - 1
-    )
-}
+// pub fn undefined_instruction(instruction: u8, pc: u16) {
+//     panic!(
+//         "Undefined instruction {:#04x} at {:#06x}",
+//         instruction,
+//         pc - 1
+//     )
+// }
 
 fn inr_instruction(current_val: u8, condition_bits: &mut ConditionBits) -> u8 {
     let res = current_val.wrapping_add(1);
@@ -22,7 +22,7 @@ fn dcr_instruction(current_val: u8, condition_bits: &mut ConditionBits) -> u8 {
     condition_bits.set_z(res == 0);
     condition_bits.set_p(res.count_ones() % 2 == 0);
     condition_bits.set_s(res & 0x80 == 0x80);
-    condition_bits.set_ac((current_val & 0x0F) == 0x00);
+    condition_bits.set_ac((current_val & 0x0F) != 0x00);
     res
 }
 
@@ -56,7 +56,7 @@ fn sub_instruction(
     condition_bits.set_p((res as u8).count_ones() % 2 == 0);
     condition_bits.set_s((res as u8) & 0x80 == 0x80);
 
-    let ac = ((current_val & 0x0F) as i16) - ((value & 0x0F) as i16) - (borrow_in as i16) < 0;
+    let ac = ((current_val & 0x0F) as i16) - ((value & 0x0F) as i16) - (borrow_in as i16) >= 0;
     condition_bits.set_ac(ac);
 
     res as u8
@@ -66,7 +66,8 @@ fn and_instruction(current_val: u8, value: u8, condition_bits: &mut ConditionBit
     let res = current_val & value;
     condition_bits.set_z(res == 0);
     condition_bits.set_c(false);
-    condition_bits.set_ac(false);
+    // AC is set to OR of bit 3 of both operands (8080 specific behaviour)
+    condition_bits.set_ac((current_val | value) & 0x08 != 0);
     condition_bits.set_p(res.count_ones() % 2 == 0);
     condition_bits.set_s(res & 0x80 == 0x80);
     res
@@ -94,26 +95,26 @@ fn or_instruction(current_val: u8, value: u8, condition_bits: &mut ConditionBits
 
 impl Cpu {
     #[inline(always)]
-    fn push(&mut self, bus: &mut Bus, val: u16) {
+    fn push<I: io::IOHandler>(&mut self, bus: &mut Bus<I>, val: u16) {
         self.sp = self.sp.wrapping_sub(2);
         bus.write_u16(self.sp, val);
     }
 
     #[inline(always)]
-    fn pop(&mut self, bus: &mut Bus) -> u16 {
+    fn pop<I: io::IOHandler>(&mut self, bus: &mut Bus<I>) -> u16 {
         let val = bus.read_u16(self.sp);
         self.sp = self.sp.wrapping_add(2);
         val
     }
 
     #[inline(always)]
-    fn call(&mut self, bus: &mut Bus, off: u16) {
+    fn call<I: io::IOHandler>(&mut self, bus: &mut Bus<I>, off: u16) {
         self.push(bus, self.pc);
         self.pc = off;
     }
 
     #[inline(always)]
-    fn ret(&mut self, bus: &mut Bus) {
+    fn ret<I: io::IOHandler>(&mut self, bus: &mut Bus<I>) {
         self.pc = self.pop(bus);
     }
 
@@ -124,36 +125,48 @@ impl Cpu {
 }
 
 macro_rules! get {
-    ($self:expr, bc) => {$self.registers.get_bc()};
-    ($self:expr, de) => {$self.registers.get_de()};
-    ($self:expr, hl) => {$self.registers.get_hl()};
+    ($self:expr, bc) => {
+        $self.registers.get_bc()
+    };
+    ($self:expr, de) => {
+        $self.registers.get_de()
+    };
+    ($self:expr, hl) => {
+        $self.registers.get_hl()
+    };
 
     ($self:expr, $reg:ident) => {
-      $self.registers.$reg  
+        $self.registers.$reg
     };
 }
 
 macro_rules! set {
-    ($self:expr, bc, $val: expr) => {$self.registers.set_bc($val)};
-    ($self:expr, de, $val: expr) => {$self.registers.set_de($val)};
-    ($self:expr, hl, $val: expr) => {$self.registers.set_hl($val)};
+    ($self:expr, bc, $val: expr) => {
+        $self.registers.set_bc($val)
+    };
+    ($self:expr, de, $val: expr) => {
+        $self.registers.set_de($val)
+    };
+    ($self:expr, hl, $val: expr) => {
+        $self.registers.set_hl($val)
+    };
 
     ($self:expr, $reg:ident, $val:expr) => {
-      $self.registers.$reg = $val
+        $self.registers.$reg = $val
     };
 }
 
 impl Cpu {
-    pub(super) fn run_instr(&mut self, bus: &mut Bus) {
+    pub(super) fn run_instr<I: io::IOHandler>(&mut self, bus: &mut Bus<I>) {
         self.cycles += 4;
         match self.fetch_u8(bus) {
-            0x00 => {/* NOP */},
+            0x00 => { /* NOP */ }
             0x01 => {
-                // LXI B, D16    
+                // LXI B, D16
                 let val = self.fetch_u16(bus);
                 set!(self, bc, val);
                 self.cycles += 6;
-            },
+            }
             0x02 => {
                 // STAX B
                 bus.write_u8(get!(self, bc), get!(self, A));
@@ -166,12 +179,20 @@ impl Cpu {
             }
             0x04 => {
                 //INR B
-                set!(self, B, inr_instruction(get!(self, B), &mut self.condition_bits));
+                set!(
+                    self,
+                    B,
+                    inr_instruction(get!(self, B), &mut self.condition_bits)
+                );
                 self.cycles += 1;
             }
             0x05 => {
                 //DCR B
-                set!(self, B, dcr_instruction(get!(self, B), &mut self.condition_bits));
+                set!(
+                    self,
+                    B,
+                    dcr_instruction(get!(self, B), &mut self.condition_bits)
+                );
                 self.cycles += 1;
             }
             0x06 => {
@@ -185,7 +206,7 @@ impl Cpu {
                 self.condition_bits.set_c(val >> 7 == 1);
                 set!(self, A, (val << 1) | (val >> 7));
             }
-            0x08 => { /* NOP */}
+            0x08 => { /* NOP */ }
             0x09 => {
                 // DAD B
                 let hl = get!(self, hl);
@@ -207,12 +228,20 @@ impl Cpu {
             }
             0x0C => {
                 // INR C
-                set!(self, C, inr_instruction(get!(self, C), &mut self.condition_bits));
+                set!(
+                    self,
+                    C,
+                    inr_instruction(get!(self, C), &mut self.condition_bits)
+                );
                 self.cycles += 1;
             }
             0x0D => {
                 // DCR C
-                set!(self, C, dcr_instruction(get!(self, C), &mut self.condition_bits));
+                set!(
+                    self,
+                    C,
+                    dcr_instruction(get!(self, C), &mut self.condition_bits)
+                );
                 self.cycles += 1;
             }
             0x0E => {
@@ -226,7 +255,7 @@ impl Cpu {
                 self.condition_bits.set_c(val & 0x01 == 1);
                 set!(self, A, (val >> 1) | (val << 7));
             }
-            0x10 => { /* NOP */}
+            0x10 => { /* NOP */ }
             0x11 => {
                 // LXI D, D16
                 let val = self.fetch_u16(bus);
@@ -245,12 +274,20 @@ impl Cpu {
             }
             0x14 => {
                 // INR D
-                set!(self, D, inr_instruction(get!(self, D), &mut self.condition_bits));
+                set!(
+                    self,
+                    D,
+                    inr_instruction(get!(self, D), &mut self.condition_bits)
+                );
                 self.cycles += 1;
             }
             0x15 => {
                 // DCR D
-                set!(self, D, dcr_instruction(get!(self, D), &mut self.condition_bits));
+                set!(
+                    self,
+                    D,
+                    dcr_instruction(get!(self, D), &mut self.condition_bits)
+                );
                 self.cycles += 1;
             }
             0x16 => {
@@ -264,7 +301,7 @@ impl Cpu {
                 set!(self, A, (val << 1) | (self.condition_bits.c() as u8));
                 self.condition_bits.set_c(val >> 7 == 1);
             }
-            0x18 => { /* NOP */}
+            0x18 => { /* NOP */ }
             0x19 => {
                 // DAD D
                 let hl = get!(self, hl);
@@ -286,12 +323,20 @@ impl Cpu {
             }
             0x1C => {
                 // INR E
-                set!(self, E, inr_instruction(get!(self, E), &mut self.condition_bits));
+                set!(
+                    self,
+                    E,
+                    inr_instruction(get!(self, E), &mut self.condition_bits)
+                );
                 self.cycles += 1;
             }
             0x1D => {
                 // DCR E
-                set!(self, E, dcr_instruction(get!(self, E), &mut self.condition_bits));
+                set!(
+                    self,
+                    E,
+                    dcr_instruction(get!(self, E), &mut self.condition_bits)
+                );
                 self.cycles += 1;
             }
             0x1E => {
@@ -305,7 +350,7 @@ impl Cpu {
                 set!(self, A, (val >> 1) | ((self.condition_bits.c() as u8) << 7));
                 self.condition_bits.set_c(val & 0x01 == 1);
             }
-            0x20 => { /* NOP */}
+            0x20 => { /* NOP */ }
             0x21 => {
                 // LXI H, D16
                 let val = self.fetch_u16(bus);
@@ -325,12 +370,20 @@ impl Cpu {
             }
             0x24 => {
                 // INR H
-                set!(self, H, inr_instruction(get!(self, H), &mut self.condition_bits));
+                set!(
+                    self,
+                    H,
+                    inr_instruction(get!(self, H), &mut self.condition_bits)
+                );
                 self.cycles += 1;
             }
             0x25 => {
                 // DCR H
-                set!(self, H, dcr_instruction(get!(self, H), &mut self.condition_bits));
+                set!(
+                    self,
+                    H,
+                    dcr_instruction(get!(self, H), &mut self.condition_bits)
+                );
                 self.cycles += 1;
             }
             0x26 => {
@@ -348,8 +401,7 @@ impl Cpu {
 
                 let lower_nibble = accumulator & 0x0F;
                 if lower_nibble > 9 || ac {
-                    self.condition_bits
-                        .set_ac((lower_nibble + 0x06) > 0x0F);
+                    self.condition_bits.set_ac((lower_nibble + 0x06) > 0x0F);
                     (accumulator, step1_carry) = accumulator.overflowing_add(6);
                 } else {
                     self.condition_bits.set_ac(false);
@@ -358,19 +410,13 @@ impl Cpu {
                 if upper_nibble > 9 || old_c || step1_carry {
                     (accumulator, step2_carry) = accumulator.overflowing_add(0x60);
                 }
-                self
-                    .condition_bits
-                    .set_c(step1_carry | step2_carry | old_c);
+                self.condition_bits.set_c(step1_carry | step2_carry | old_c);
                 self.condition_bits.set_z(accumulator == 0);
-                self
-                    .condition_bits
-                    .set_p(accumulator.count_ones() % 2 == 0);
-                self
-                    .condition_bits
-                    .set_s(accumulator & 0x80 == 0x80);
+                self.condition_bits.set_p(accumulator.count_ones() % 2 == 0);
+                self.condition_bits.set_s(accumulator & 0x80 == 0x80);
                 set!(self, A, accumulator);
             }
-            0x28 => { /* NOP */}
+            0x28 => { /* NOP */ }
             0x29 => {
                 // DAD H
                 let hl = get!(self, hl);
@@ -392,12 +438,20 @@ impl Cpu {
             }
             0x2C => {
                 // INR L
-                set!(self, L, inr_instruction(get!(self, L), &mut self.condition_bits));
+                set!(
+                    self,
+                    L,
+                    inr_instruction(get!(self, L), &mut self.condition_bits)
+                );
                 self.cycles += 1;
             }
             0x2D => {
                 // DCR L
-                set!(self, L, dcr_instruction(get!(self, L), &mut self.condition_bits));
+                set!(
+                    self,
+                    L,
+                    dcr_instruction(get!(self, L), &mut self.condition_bits)
+                );
                 self.cycles += 1;
             }
             0x2E => {
@@ -412,7 +466,7 @@ impl Cpu {
             0x30 => { /* NOP */ }
             0x31 => {
                 // LXI SP, D16
-                self.sp = self.fetch_u16(bus);  
+                self.sp = self.fetch_u16(bus);
                 self.cycles += 6;
             }
             0x32 => {
@@ -471,12 +525,20 @@ impl Cpu {
             }
             0x3C => {
                 // INR A
-                set!(self, A, inr_instruction(get!(self, A), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    inr_instruction(get!(self, A), &mut self.condition_bits)
+                );
                 self.cycles += 1;
             }
             0x3D => {
                 // DCR A
-                set!(self, A, dcr_instruction(get!(self, A), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    dcr_instruction(get!(self, A), &mut self.condition_bits)
+                );
                 self.cycles += 1;
             }
             0x3E => {
@@ -812,273 +874,709 @@ impl Cpu {
             }
             0x80 => {
                 // ADD B
-                set!(self, A, add_instruction(get!(self, A), get!(self, B), false, &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    add_instruction(
+                        get!(self, A),
+                        get!(self, B),
+                        false,
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x81 => {
                 // ADD C
-                set!(self, A, add_instruction(get!(self, A), get!(self, C), false, &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    add_instruction(
+                        get!(self, A),
+                        get!(self, C),
+                        false,
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x82 => {
                 // ADD D
-                set!(self, A, add_instruction(get!(self, A), get!(self, D), false, &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    add_instruction(
+                        get!(self, A),
+                        get!(self, D),
+                        false,
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x83 => {
                 // ADD E
-                set!(self, A, add_instruction(get!(self, A), get!(self, E), false, &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    add_instruction(
+                        get!(self, A),
+                        get!(self, E),
+                        false,
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x84 => {
                 // ADD H
-                set!(self, A, add_instruction(get!(self, A), get!(self, H), false, &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    add_instruction(
+                        get!(self, A),
+                        get!(self, H),
+                        false,
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x85 => {
                 // ADD L
-                set!(self, A, add_instruction(get!(self, A), get!(self, L), false, &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    add_instruction(
+                        get!(self, A),
+                        get!(self, L),
+                        false,
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x86 => {
                 // ADD M
-                set!(self, A, add_instruction(get!(self, A), bus.read_u8(get!(self, hl)), false, &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    add_instruction(
+                        get!(self, A),
+                        bus.read_u8(get!(self, hl)),
+                        false,
+                        &mut self.condition_bits
+                    )
+                );
                 self.cycles += 3;
             }
             0x87 => {
                 // ADD A
-                set!(self, A, add_instruction(get!(self, A), get!(self, A), false, &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    add_instruction(
+                        get!(self, A),
+                        get!(self, A),
+                        false,
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x88 => {
                 // ADC B
-                set!(self, A, add_instruction(get!(self, A), get!(self, B), self.condition_bits.c(), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    add_instruction(
+                        get!(self, A),
+                        get!(self, B),
+                        self.condition_bits.c(),
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x89 => {
                 // ADC C
-                set!(self, A, add_instruction(get!(self, A), get!(self, C), self.condition_bits.c(), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    add_instruction(
+                        get!(self, A),
+                        get!(self, C),
+                        self.condition_bits.c(),
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x8A => {
                 // ADC D
-                set!(self, A, add_instruction(get!(self, A), get!(self, D), self.condition_bits.c(), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    add_instruction(
+                        get!(self, A),
+                        get!(self, D),
+                        self.condition_bits.c(),
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x8B => {
                 // ADC E
-                set!(self, A, add_instruction(get!(self, A), get!(self, E), self.condition_bits.c(), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    add_instruction(
+                        get!(self, A),
+                        get!(self, E),
+                        self.condition_bits.c(),
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x8C => {
                 // ADC H
-                set!(self, A, add_instruction(get!(self, A), get!(self, H), self.condition_bits.c(), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    add_instruction(
+                        get!(self, A),
+                        get!(self, H),
+                        self.condition_bits.c(),
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x8D => {
                 // ADC L
-                set!(self, A, add_instruction(get!(self, A), get!(self, L), self.condition_bits.c(), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    add_instruction(
+                        get!(self, A),
+                        get!(self, L),
+                        self.condition_bits.c(),
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x8E => {
                 // ADC M
-                set!(self, A, add_instruction(get!(self, A), bus.read_u8(get!(self, hl)), self.condition_bits.c(), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    add_instruction(
+                        get!(self, A),
+                        bus.read_u8(get!(self, hl)),
+                        self.condition_bits.c(),
+                        &mut self.condition_bits
+                    )
+                );
                 self.cycles += 3;
             }
             0x8F => {
                 // ADC A
-                set!(self, A, add_instruction(get!(self, A), get!(self, A), self.condition_bits.c(), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    add_instruction(
+                        get!(self, A),
+                        get!(self, A),
+                        self.condition_bits.c(),
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x90 => {
                 // SUB B
-                set!(self, A, sub_instruction(get!(self, A), get!(self, B), false, &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    sub_instruction(
+                        get!(self, A),
+                        get!(self, B),
+                        false,
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x91 => {
                 // SUB C
-                set!(self, A, sub_instruction(get!(self, A), get!(self, C), false, &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    sub_instruction(
+                        get!(self, A),
+                        get!(self, C),
+                        false,
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x92 => {
                 // SUB D
-                set!(self, A, sub_instruction(get!(self, A), get!(self, D), false, &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    sub_instruction(
+                        get!(self, A),
+                        get!(self, D),
+                        false,
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x93 => {
                 // SUB E
-                set!(self, A, sub_instruction(get!(self, A), get!(self, E), false, &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    sub_instruction(
+                        get!(self, A),
+                        get!(self, E),
+                        false,
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x94 => {
                 // SUB H
-                set!(self, A, sub_instruction(get!(self, A), get!(self, H), false, &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    sub_instruction(
+                        get!(self, A),
+                        get!(self, H),
+                        false,
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x95 => {
                 // SUB L
-                set!(self, A, sub_instruction(get!(self, A), get!(self, L), false, &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    sub_instruction(
+                        get!(self, A),
+                        get!(self, L),
+                        false,
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x96 => {
                 // SUB M
-                set!(self, A, sub_instruction(get!(self, A), bus.read_u8(get!(self, hl)), false, &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    sub_instruction(
+                        get!(self, A),
+                        bus.read_u8(get!(self, hl)),
+                        false,
+                        &mut self.condition_bits
+                    )
+                );
                 self.cycles += 3;
             }
             0x97 => {
                 // SUB A
-                set!(self, A, sub_instruction(get!(self, A), get!(self, A), false, &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    sub_instruction(
+                        get!(self, A),
+                        get!(self, A),
+                        false,
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x98 => {
                 // SBB B
-                set!(self, A, sub_instruction(get!(self, A), get!(self, B), self.condition_bits.c(), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    sub_instruction(
+                        get!(self, A),
+                        get!(self, B),
+                        self.condition_bits.c(),
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x99 => {
                 // SBB C
-                set!(self, A, sub_instruction(get!(self, A), get!(self, C), self.condition_bits.c(), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    sub_instruction(
+                        get!(self, A),
+                        get!(self, C),
+                        self.condition_bits.c(),
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x9A => {
                 // SBB D
-                set!(self, A, sub_instruction(get!(self, A), get!(self, D), self.condition_bits.c(), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    sub_instruction(
+                        get!(self, A),
+                        get!(self, D),
+                        self.condition_bits.c(),
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x9B => {
                 // SBB E
-                set!(self, A, sub_instruction(get!(self, A), get!(self, E), self.condition_bits.c(), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    sub_instruction(
+                        get!(self, A),
+                        get!(self, E),
+                        self.condition_bits.c(),
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x9C => {
                 // SBB H
-                set!(self, A, sub_instruction(get!(self, A), get!(self, H), self.condition_bits.c(), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    sub_instruction(
+                        get!(self, A),
+                        get!(self, H),
+                        self.condition_bits.c(),
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x9D => {
                 // SBB L
-                set!(self, A, sub_instruction(get!(self, A), get!(self, L), self.condition_bits.c(), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    sub_instruction(
+                        get!(self, A),
+                        get!(self, L),
+                        self.condition_bits.c(),
+                        &mut self.condition_bits
+                    )
+                );
             }
             0x9E => {
                 // SBB M
-                set!(self, A, sub_instruction(get!(self, A), bus.read_u8(get!(self, hl)), self.condition_bits.c(), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    sub_instruction(
+                        get!(self, A),
+                        bus.read_u8(get!(self, hl)),
+                        self.condition_bits.c(),
+                        &mut self.condition_bits
+                    )
+                );
                 self.cycles += 3;
             }
             0x9F => {
                 // SBB A
-                set!(self, A, sub_instruction(get!(self, A), get!(self, A), self.condition_bits.c(), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    sub_instruction(
+                        get!(self, A),
+                        get!(self, A),
+                        self.condition_bits.c(),
+                        &mut self.condition_bits
+                    )
+                );
             }
             0xA0 => {
                 // ANA B
-                set!(self, A, and_instruction(get!(self, A), get!(self, B), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    and_instruction(get!(self, A), get!(self, B), &mut self.condition_bits)
+                );
             }
             0xA1 => {
                 // ANA C
-                set!(self, A, and_instruction(get!(self, A), get!(self, C), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    and_instruction(get!(self, A), get!(self, C), &mut self.condition_bits)
+                );
             }
             0xA2 => {
                 // ANA D
-                set!(self, A, and_instruction(get!(self, A), get!(self, D), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    and_instruction(get!(self, A), get!(self, D), &mut self.condition_bits)
+                );
             }
             0xA3 => {
                 // ANA E
-                set!(self, A, and_instruction(get!(self, A), get!(self, E), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    and_instruction(get!(self, A), get!(self, E), &mut self.condition_bits)
+                );
             }
             0xA4 => {
                 // ANA H
-                set!(self, A, and_instruction(get!(self, A), get!(self, H), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    and_instruction(get!(self, A), get!(self, H), &mut self.condition_bits)
+                );
             }
             0xA5 => {
                 // ANA L
-                set!(self, A, and_instruction(get!(self, A), get!(self, L), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    and_instruction(get!(self, A), get!(self, L), &mut self.condition_bits)
+                );
             }
             0xA6 => {
                 // ANA M
-                set!(self, A, and_instruction(get!(self, A), bus.read_u8(get!(self, hl)), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    and_instruction(
+                        get!(self, A),
+                        bus.read_u8(get!(self, hl)),
+                        &mut self.condition_bits
+                    )
+                );
                 self.cycles += 3;
             }
             0xA7 => {
                 // ANA A
-                set!(self, A, and_instruction(get!(self, A), get!(self, A), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    and_instruction(get!(self, A), get!(self, A), &mut self.condition_bits)
+                );
             }
             0xA8 => {
                 // XRA B
-                set!(self, A, xor_instruction(get!(self, A), get!(self, B), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    xor_instruction(get!(self, A), get!(self, B), &mut self.condition_bits)
+                );
             }
             0xA9 => {
                 // XRA C
-                set!(self, A, xor_instruction(get!(self, A), get!(self, C), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    xor_instruction(get!(self, A), get!(self, C), &mut self.condition_bits)
+                );
             }
             0xAA => {
                 // XRA D
-                set!(self, A, xor_instruction(get!(self, A), get!(self, D), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    xor_instruction(get!(self, A), get!(self, D), &mut self.condition_bits)
+                );
             }
             0xAB => {
                 // XRA E
-                set!(self, A, xor_instruction(get!(self, A), get!(self, E), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    xor_instruction(get!(self, A), get!(self, E), &mut self.condition_bits)
+                );
             }
             0xAC => {
                 // XRA H
-                set!(self, A, xor_instruction(get!(self, A), get!(self, H), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    xor_instruction(get!(self, A), get!(self, H), &mut self.condition_bits)
+                );
             }
             0xAD => {
                 // XRA L
-                set!(self, A, xor_instruction(get!(self, A), get!(self, L), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    xor_instruction(get!(self, A), get!(self, L), &mut self.condition_bits)
+                );
             }
             0xAE => {
                 // XRA M
-                set!(self, A, xor_instruction(get!(self, A), bus.read_u8(get!(self, hl)), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    xor_instruction(
+                        get!(self, A),
+                        bus.read_u8(get!(self, hl)),
+                        &mut self.condition_bits
+                    )
+                );
                 self.cycles += 3;
             }
             0xAF => {
                 // XRA A
-                set!(self, A, xor_instruction(get!(self, A), get!(self, A), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    xor_instruction(get!(self, A), get!(self, A), &mut self.condition_bits)
+                );
             }
             0xB0 => {
                 // ORA B
-                set!(self, A, or_instruction(get!(self, A), get!(self, B), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    or_instruction(get!(self, A), get!(self, B), &mut self.condition_bits)
+                );
             }
             0xB1 => {
                 // ORA C
-                set!(self, A, or_instruction(get!(self, A), get!(self, C), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    or_instruction(get!(self, A), get!(self, C), &mut self.condition_bits)
+                );
             }
             0xB2 => {
                 // ORA D
-                set!(self, A, or_instruction(get!(self, A), get!(self, D), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    or_instruction(get!(self, A), get!(self, D), &mut self.condition_bits)
+                );
             }
             0xB3 => {
                 // ORA E
-                set!(self, A, or_instruction(get!(self, A), get!(self, E), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    or_instruction(get!(self, A), get!(self, E), &mut self.condition_bits)
+                );
             }
             0xB4 => {
                 // ORA H
-                set!(self, A, or_instruction(get!(self, A), get!(self, H), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    or_instruction(get!(self, A), get!(self, H), &mut self.condition_bits)
+                );
             }
             0xB5 => {
                 // ORA L
-                set!(self, A, or_instruction(get!(self, A), get!(self, L), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    or_instruction(get!(self, A), get!(self, L), &mut self.condition_bits)
+                );
             }
             0xB6 => {
                 // ORA M
-                set!(self, A, or_instruction(get!(self, A), bus.read_u8(get!(self, hl)), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    or_instruction(
+                        get!(self, A),
+                        bus.read_u8(get!(self, hl)),
+                        &mut self.condition_bits
+                    )
+                );
                 self.cycles += 3;
             }
             0xB7 => {
                 // ORA A
-                set!(self, A, or_instruction(get!(self, A), get!(self, A), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    or_instruction(get!(self, A), get!(self, A), &mut self.condition_bits)
+                );
             }
             0xB8 => {
                 // CMP B
-                sub_instruction(get!(self, A), get!(self, B), false, &mut self.condition_bits);
+                sub_instruction(
+                    get!(self, A),
+                    get!(self, B),
+                    false,
+                    &mut self.condition_bits,
+                );
             }
             0xB9 => {
                 // CMP C
-                sub_instruction(get!(self, A), get!(self, C), false, &mut self.condition_bits);
+                sub_instruction(
+                    get!(self, A),
+                    get!(self, C),
+                    false,
+                    &mut self.condition_bits,
+                );
             }
             0xBA => {
                 // CMP D
-                sub_instruction(get!(self, A), get!(self, D), false, &mut self.condition_bits);
+                sub_instruction(
+                    get!(self, A),
+                    get!(self, D),
+                    false,
+                    &mut self.condition_bits,
+                );
             }
             0xBB => {
                 // CMP E
-                sub_instruction(get!(self, A), get!(self, E), false, &mut self.condition_bits);
+                sub_instruction(
+                    get!(self, A),
+                    get!(self, E),
+                    false,
+                    &mut self.condition_bits,
+                );
             }
             0xBC => {
                 // CMP H
-                sub_instruction(get!(self, A), get!(self, H), false, &mut self.condition_bits);
+                sub_instruction(
+                    get!(self, A),
+                    get!(self, H),
+                    false,
+                    &mut self.condition_bits,
+                );
             }
             0xBD => {
                 // CMP L
-                sub_instruction(get!(self, A), get!(self, L), false, &mut self.condition_bits);
+                sub_instruction(
+                    get!(self, A),
+                    get!(self, L),
+                    false,
+                    &mut self.condition_bits,
+                );
             }
             0xBE => {
                 // CMP M
-                sub_instruction(get!(self, A), bus.read_u8(get!(self, hl)), false, &mut self.condition_bits);
+                sub_instruction(
+                    get!(self, A),
+                    bus.read_u8(get!(self, hl)),
+                    false,
+                    &mut self.condition_bits,
+                );
                 self.cycles += 3;
             }
             0xBF => {
                 // CMP A
-                sub_instruction(get!(self, A), get!(self, A), false, &mut self.condition_bits);
+                sub_instruction(
+                    get!(self, A),
+                    get!(self, A),
+                    false,
+                    &mut self.condition_bits,
+                );
             }
             0xC0 => {
                 // RNZ
                 if !self.condition_bits.z() {
                     self.ret(bus);
-                    self.cycles += 6; 
+                    self.cycles += 6;
                 }
                 self.cycles += 1;
             }
@@ -1118,7 +1616,16 @@ impl Cpu {
             }
             0xC6 => {
                 // ADI d8
-                set!(self, A, add_instruction(get!(self, A), self.fetch_u8(bus), false, &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    add_instruction(
+                        get!(self, A),
+                        self.fetch_u8(bus),
+                        false,
+                        &mut self.condition_bits
+                    )
+                );
                 self.cycles += 3;
             }
             0xC7 => {
@@ -1131,7 +1638,7 @@ impl Cpu {
                 // RZ
                 if self.condition_bits.z() {
                     self.ret(bus);
-                    self.cycles += 6; 
+                    self.cycles += 6;
                 }
                 self.cycles += 1;
             }
@@ -1171,7 +1678,16 @@ impl Cpu {
             }
             0xCE => {
                 // ACI d8
-                set!(self, A, add_instruction(get!(self, A), self.fetch_u8(bus), self.condition_bits.c(), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    add_instruction(
+                        get!(self, A),
+                        self.fetch_u8(bus),
+                        self.condition_bits.c(),
+                        &mut self.condition_bits
+                    )
+                );
                 self.cycles += 3;
             }
             0xCF => {
@@ -1203,8 +1719,9 @@ impl Cpu {
                 self.cycles += 6;
             }
             0xD3 => {
-                // OUT d8 
-                undefined_instruction(0xD3, self.pc);
+                // OUT d8
+                let port = self.fetch_u8(bus);
+                bus.io_write(port, get!(self, A));
                 self.cycles += 6;
             }
             0xD4 => {
@@ -1223,7 +1740,16 @@ impl Cpu {
             }
             0xD6 => {
                 // SUI d8
-                set!(self, A, sub_instruction(get!(self, A), self.fetch_u8(bus), false, &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    sub_instruction(
+                        get!(self, A),
+                        self.fetch_u8(bus),
+                        false,
+                        &mut self.condition_bits
+                    )
+                );
                 self.cycles += 3;
             }
             0xD7 => {
@@ -1255,7 +1781,8 @@ impl Cpu {
             }
             0xDB => {
                 // IN d8
-                undefined_instruction(0xDB, self.pc);
+                let port = self.fetch_u8(bus);
+                set!(self, A, bus.io_read(port));
                 self.cycles += 6;
             }
             0xDC => {
@@ -1275,7 +1802,16 @@ impl Cpu {
             }
             0xDE => {
                 // SBI d8
-                set!(self, A, sub_instruction(get!(self, A), self.fetch_u8(bus), self.condition_bits.c(), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    sub_instruction(
+                        get!(self, A),
+                        self.fetch_u8(bus),
+                        self.condition_bits.c(),
+                        &mut self.condition_bits
+                    )
+                );
                 self.cycles += 3;
             }
             0xDF => {
@@ -1330,7 +1866,11 @@ impl Cpu {
             }
             0xE6 => {
                 // ANI d8
-                set!(self, A, and_instruction(get!(self, A), self.fetch_u8(bus), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    and_instruction(get!(self, A), self.fetch_u8(bus), &mut self.condition_bits)
+                );
                 self.cycles += 3;
             }
             0xE7 => {
@@ -1383,7 +1923,11 @@ impl Cpu {
             }
             0xEE => {
                 // XRI d8
-                set!(self, A, xor_instruction(get!(self, A), self.fetch_u8(bus), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    xor_instruction(get!(self, A), self.fetch_u8(bus), &mut self.condition_bits)
+                );
                 self.cycles += 3;
             }
             0xEF => {
@@ -1436,7 +1980,11 @@ impl Cpu {
             }
             0xF6 => {
                 // ORI d8
-                set!(self, A, or_instruction(get!(self, A), self.fetch_u8(bus), &mut self.condition_bits));
+                set!(
+                    self,
+                    A,
+                    or_instruction(get!(self, A), self.fetch_u8(bus), &mut self.condition_bits)
+                );
                 self.cycles += 3;
             }
             0xF7 => {
@@ -1467,7 +2015,7 @@ impl Cpu {
                 self.cycles += 6;
             }
             0xFB => {
-                // EI 
+                // EI
                 self.ime = true;
             }
             0xFC => {
@@ -1487,7 +2035,12 @@ impl Cpu {
             }
             0xFE => {
                 // CPI d8
-                sub_instruction(get!(self, A), self.fetch_u8(bus), false, &mut self.condition_bits);
+                sub_instruction(
+                    get!(self, A),
+                    self.fetch_u8(bus),
+                    false,
+                    &mut self.condition_bits,
+                );
                 self.cycles += 3;
             }
             0xFF => {
@@ -1499,4 +2052,3 @@ impl Cpu {
         }
     }
 }
-

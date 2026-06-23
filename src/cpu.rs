@@ -12,6 +12,8 @@ use registers::Registers;
 
 pub use bus::Bus;
 
+use crate::io;
+
 pub struct Cpu {
     /// Current CPU cycles
     cycles: usize,
@@ -38,31 +40,33 @@ impl Cpu {
     }
 
     /// Run a CPU step
-    pub fn step(&mut self, bus: &mut Bus) -> usize {
+    pub fn step<I: io::IOHandler>(&mut self, bus: &mut Bus<I>) -> usize {
         let start = self.cycles;
 
-        if self.ime {
-            // Disable halting
-            self.halt = false;
-        } else if !self.halt {
+        // if self.ime {
+        //     // Disable halting
+        //     self.halt = false;
+        // } else if !self.halt {
+        //     // Run a single instruction
+        //     self.run_instr(bus);
+        // } else {
+        //     // Cpu is halted, wait 1 cycle
+        //     self.cycles += 1;
+        // }
+
+        if self.halt {
+            self.cycles += 1;
+        } else {
             // Run a single instruction
             self.run_instr(bus);
-        } else {
-            // Cpu is halted, wait 1 cycle
-            self.cycles += 1;
         }
 
         self.cycles - start
     }
 
-    /// Get the program counter
-    pub fn get_pc(&self) -> u16 {
-        self.pc
-    }
-
     /// Fetch a single byte at pc
     #[inline(always)]
-    fn fetch_u8(&mut self, bus: &Bus) -> u8 {
+    fn fetch_u8<I: io::IOHandler>(&mut self, bus: &Bus<I>) -> u8 {
         let addr = self.pc;
         self.pc = addr.wrapping_add(1);
         bus.read_u8(addr)
@@ -70,7 +74,7 @@ impl Cpu {
 
     /// Fetch two bytes at pc
     #[inline(always)]
-    fn fetch_u16(&mut self, bus: &mut Bus) -> u16 {
+    fn fetch_u16<I: io::IOHandler>(&mut self, bus: &mut Bus<I>) -> u16 {
         let addr = self.pc;
         self.pc = addr.wrapping_add(2);
         bus.read_u16(addr)

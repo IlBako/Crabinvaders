@@ -8,4 +8,6 @@ mod utils;
 pub use utils::real_time;
 
 pub mod cpu;
+pub mod hardware_impl;
+pub mod io;
 pub mod memory;
