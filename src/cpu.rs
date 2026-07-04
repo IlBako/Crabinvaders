@@ -43,17 +43,6 @@ impl Cpu {
     pub fn step<I: io::IOHandler>(&mut self, bus: &mut Bus<I>) -> usize {
         let start = self.cycles;
 
-        // if self.ime {
-        //     // Disable halting
-        //     self.halt = false;
-        // } else if !self.halt {
-        //     // Run a single instruction
-        //     self.run_instr(bus);
-        // } else {
-        //     // Cpu is halted, wait 1 cycle
-        //     self.cycles += 1;
-        // }
-
         if self.halt {
             self.cycles += 1;
         } else {

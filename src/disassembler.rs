@@ -1,15 +1,7 @@
 use std::fs::OpenOptions;
 use std::io::Write;
 
-pub fn disassemble_file(rom_files: &[String], out_path: &str) {
-    let mut total_buffer = Vec::new();
-
-    for path in rom_files {
-        let mut part =
-            std::fs::read(path).unwrap_or_else(|_| panic!("Missing ROM file segment: {}", path));
-        total_buffer.append(&mut part);
-    }
-
+pub fn disassemble_file(rom: &[u8], out_path: &str) {
     std::fs::create_dir_all("out").expect("Unable to create output directory");
     let mut out_file = OpenOptions::new()
         .write(true)
@@ -18,11 +10,11 @@ pub fn disassemble_file(rom_files: &[String], out_path: &str) {
         .open(&format!("out/{}", out_path))
         .expect("Unable to open output file!");
 
-    let fsize = total_buffer.len();
+    let fsize = rom.len();
     let mut pc = 0;
 
     while pc < fsize {
-        let (opbytes, instruction) = decode_instruction(&total_buffer, pc);
+        let (opbytes, instruction) = decode_instruction(&rom, pc);
         writeln!(out_file, "{:04x} {}", pc, instruction).expect("Failed to write to file");
         pc += opbytes as usize;
     }

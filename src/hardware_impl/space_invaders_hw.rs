@@ -122,7 +122,7 @@ impl IOHandler for SpaceInvadersHardware {
             }
             3 | 5 => {
                 // Unimplemented sound triggers
-                unimplemented!();
+                // unimplemented!();
             }
             _ => {} // Ignore writes to unmapped ports
         }

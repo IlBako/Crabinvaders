@@ -122,6 +122,11 @@ impl Cpu {
     fn jp(&mut self, off: u16) {
         self.pc = off;
     }
+
+    #[inline(always)]
+    fn rst<I: io::IOHandler>(&mut self, bus: &mut Bus<I>, off: u8) {
+        self.call(bus, 0x0000 + off as u16);
+    }
 }
 
 macro_rules! get {
@@ -1630,8 +1635,7 @@ impl Cpu {
             }
             0xC7 => {
                 // RST 0
-                let off = 0x0000;
-                self.call(bus, off);
+                self.rst(bus, 0x00);
                 self.cycles += 7;
             }
             0xC8 => {
@@ -1692,8 +1696,7 @@ impl Cpu {
             }
             0xCF => {
                 // RST 1
-                let off = 0x0008;
-                self.call(bus, off);
+                self.rst(bus, 0x08);
                 self.cycles += 7;
             }
             0xD0 => {
@@ -1754,8 +1757,7 @@ impl Cpu {
             }
             0xD7 => {
                 // RST 2
-                let off = 0x0010;
-                self.call(bus, off);
+                self.rst(bus, 0x10);
                 self.cycles += 7;
             }
             0xD8 => {
@@ -1816,8 +1818,7 @@ impl Cpu {
             }
             0xDF => {
                 // RST 3
-                let off = 0x0018;
-                self.call(bus, off);
+                self.rst(bus, 0x18);
                 self.cycles += 7;
             }
             0xE0 => {
@@ -1875,8 +1876,7 @@ impl Cpu {
             }
             0xE7 => {
                 // RST 4
-                let off = 0x0020;
-                self.call(bus, off);
+                self.rst(bus, 0x20);
                 self.cycles += 7;
             }
             0xE8 => {
@@ -1932,8 +1932,7 @@ impl Cpu {
             }
             0xEF => {
                 // RST 5
-                let off = 0x0028;
-                self.call(bus, off);
+                self.rst(bus, 0x28);
                 self.cycles += 7;
             }
             0xF0 => {
@@ -1989,8 +1988,7 @@ impl Cpu {
             }
             0xF7 => {
                 // RST 6
-                let off = 0x0030;
-                self.call(bus, off);
+                self.rst(bus, 0x30);
                 self.cycles += 7;
             }
             0xF8 => {
@@ -2045,8 +2043,7 @@ impl Cpu {
             }
             0xFF => {
                 // RST 7
-                let off = 0x0038;
-                self.call(bus, off);
+                self.rst(bus, 0x38);
                 self.cycles += 7;
             }
         }
