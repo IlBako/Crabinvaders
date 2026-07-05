@@ -124,7 +124,7 @@ impl Cpu {
     }
 
     #[inline(always)]
-    fn rst<I: io::IOHandler>(&mut self, bus: &mut Bus<I>, off: u8) {
+    pub fn rst<I: io::IOHandler>(&mut self, bus: &mut Bus<I>, off: u8) {
         self.call(bus, 0x0000 + off as u16);
     }
 }

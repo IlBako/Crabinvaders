@@ -43,11 +43,22 @@ impl Cpu {
     pub fn step<I: io::IOHandler>(&mut self, bus: &mut Bus<I>) -> usize {
         let start = self.cycles;
 
-        if self.halt {
-            self.cycles += 1;
-        } else {
+        if self.ime && bus.interrupts.has_pending() {
+            // Disable halting
+            self.halt = false;
+
+            // Get correct interrupt and dispatch it
+            for i in 0..=1 {
+                if bus.interrupts.take_int(i) {
+                    self.rst(bus, i*0x8);
+                    break;
+                }
+            }
+        } else if !self.halt {
             // Run a single instruction
             self.run_instr(bus);
+        } else {
+            self.cycles += 1;
         }
 
         self.cycles - start

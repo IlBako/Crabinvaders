@@ -1,4 +1,4 @@
-use crate::{cpu, io, memory};
+use crate::{cpu, int, io, memory};
 use cpu::Bus;
 
 struct DummyIO;
@@ -13,6 +13,7 @@ impl io::IOHandler for DummyIO {
 fn run_cpu_test(rom: &[u8]) -> String {
     let mut output = String::new();
     let mut cpu = cpu::Cpu::new();
+    let mut int = int::Int::new();
     let mut memory = memory::Memory::new(None);
     let mut io = DummyIO;
 
@@ -55,6 +56,7 @@ fn run_cpu_test(rom: &[u8]) -> String {
         // Run one instruction (runs uncapped, as fast as possible)
         let step_cycles = cpu.step(&mut Bus {
             memory: &mut memory,
+            interrupts: &mut int,
             io: &mut io,
         });
         cycles += step_cycles as u64;

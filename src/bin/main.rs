@@ -24,6 +24,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .build()?;
 
     let mut cpu = cpu::Cpu::new();
+    let mut interrupts = int::Int::new();
     let mut memory = memory::Memory::new(Some((0x0000, 0x1FFF)));
     let mut arcade_hw = hardware_impl::SpaceInvadersHardware::new(io::DipSwitches::default());
 
@@ -56,12 +57,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         };
 
         arcade_hw.update_input(&inputs);
+        // video.step(..., &bus) -> trigger either vblank or half screen interrupt
 
         emulator::real_time(|| {
             let mut acc = 0;
-            while acc < 16_000 {
+            /// 16640 cycles between each screen interrupt
+            while acc < 16_640 {
                 let cycles = cpu.step(&mut cpu::Bus {
                     memory: &mut memory,
+                    interrupts: &mut interrupts,
                     io: &mut arcade_hw,
                 });
                 acc += cycles;

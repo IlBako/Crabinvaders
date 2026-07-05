@@ -4,6 +4,7 @@ use crate::*;
 
 pub struct Bus<'a, I: io::IOHandler> {
     pub memory: &'a mut memory::Memory,
+    pub interrupts: &'a mut int::Int,
     pub io: &'a mut I,
 }
 
