@@ -4,8 +4,9 @@ pub struct Int {
 }
 
 impl Int {
-    pub const VBLANK: u8 = 0;
+    pub const RESET: u8 = 0;
     pub const HALF_SCREEN: u8 = 1;
+    pub const VBLANK: u8 = 2;
 
     pub fn new() -> Self {
         Self { if_: 0 }
@@ -40,5 +41,4 @@ impl Int {
         self.reset_int(i);
         res
     }
-
 }

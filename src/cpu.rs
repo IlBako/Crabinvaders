@@ -48,9 +48,13 @@ impl Cpu {
             self.halt = false;
 
             // Get correct interrupt and dispatch it
-            for i in 0..=1 {
+            for i in 0..=2 {
                 if bus.interrupts.take_int(i) {
-                    self.rst(bus, i*0x8);
+                    // Stop interrupts if one is currently being executed
+                    self.ime = false;
+                    // Call the rst corresponding to the interrupt (Half-screen: RST 1, VBlank: RST 2)
+                    self.rst(bus, i * 0x8);
+                    self.cycles += 11;
                     break;
                 }
             }

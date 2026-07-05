@@ -4,14 +4,14 @@ pub const CYCLES_SECOND: usize = 1_996_800;
 pub mod disassembler;
 
 mod utils;
-
-pub use utils::real_time;
+pub use utils::*;
 
 pub mod cpu;
 pub mod hardware_impl;
+pub mod int;
 pub mod io;
 pub mod memory;
-pub mod int;
+pub mod video;
 
 // Test utilities
 #[cfg(test)]
