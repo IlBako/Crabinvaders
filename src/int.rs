@@ -14,7 +14,7 @@ impl Int {
 
     #[inline(always)]
     fn mask(i: u8) -> u8 {
-        (1 << i) & 0x03
+        (1 << i) & 0x07
     }
 
     #[inline(always)]
@@ -25,7 +25,7 @@ impl Int {
     /// Are there any pending interrupts
     #[inline(always)]
     pub fn has_pending(&mut self) -> bool {
-        (self.if_ & 0x03) != 0
+        (self.if_ & 0x07) != 0
     }
 
     /// Set a given interrupt
