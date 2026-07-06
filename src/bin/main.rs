@@ -36,6 +36,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut interrupts = int::Int::new();
     let mut memory = memory::Memory::new(Some((0x0000, 0x1FFF)));
     let mut video = video::Video::new();
+    let mut audio = audio::Audio::new()?;
     let mut arcade_hw = hardware_impl::SpaceInvadersHardware::new(io::DipSwitches::default());
 
     memory.load_binary(ROM, 0x0000);
@@ -59,6 +60,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     memory: &mut memory,
                     interrupts: &mut interrupts,
                     video: &mut video,
+                    audio: &mut audio,
                     io: &mut arcade_hw,
                     has_mirrors: true,
                     mirror_mask: 0x3FFF,

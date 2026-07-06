@@ -6,6 +6,7 @@ pub mod disassembler;
 mod utils;
 pub use utils::*;
 
+pub mod audio;
 pub mod cpu;
 pub mod hardware_impl;
 pub mod int;

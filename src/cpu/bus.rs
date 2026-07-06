@@ -6,6 +6,7 @@ pub struct Bus<'a, I: io::IOHandler> {
     pub memory: &'a mut memory::Memory,
     pub interrupts: &'a mut int::Int,
     pub video: &'a mut video::Video,
+    pub audio: &'a mut audio::Audio,
     pub io: &'a mut I,
     pub has_mirrors: bool,
     pub mirror_mask: u16,
@@ -67,6 +68,8 @@ impl<'a, I: io::IOHandler> Bus<'_, I> {
 
     // Write to port
     pub fn io_write(&mut self, port: u8, value: u8) {
-        self.io.write_port(port, value);
+        let audio = &mut self.audio;
+        let io = &mut self.io;
+        io.write_port(audio, port, value);
     }
 }

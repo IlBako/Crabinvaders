@@ -19,4 +19,4 @@ name = "disassembler"
 path = "src/bin/main_disassembler.rs"
 
 [dependencies]
-sdl2 = "0.37"
+sdl2 = {version = "0.37", features = ["mixer"]}

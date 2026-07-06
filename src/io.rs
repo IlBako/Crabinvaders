@@ -1,3 +1,5 @@
+use crate::audio::Audio;
+
 #[allow(unused_variables)]
 pub trait IOHandler {
     fn read_port(&self, port: u8) -> u8 {
@@ -5,7 +7,7 @@ pub trait IOHandler {
         0
     }
 
-    fn write_port(&mut self, port: u8, value: u8) {
+    fn write_port(&mut self, audio: &mut Audio, port: u8, value: u8) {
         // Default does nothing
     }
 }

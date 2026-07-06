@@ -1,4 +1,4 @@
-use crate::{cpu, int, io, memory, video};
+use crate::*;
 use cpu::Bus;
 
 struct DummyIO;
@@ -7,7 +7,7 @@ impl io::IOHandler for DummyIO {
     fn read_port(&self, _port: u8) -> u8 {
         0xFF
     }
-    fn write_port(&mut self, _port: u8, _value: u8) {}
+    fn write_port(&mut self, _audio: &mut audio::Audio, _port: u8, _value: u8) {}
 }
 
 fn run_cpu_test(rom: &[u8]) -> String {
@@ -16,6 +16,7 @@ fn run_cpu_test(rom: &[u8]) -> String {
     let mut int = int::Int::new();
     let mut memory = memory::Memory::new(None);
     let mut video = video::Video::new();
+    let mut audio = audio::Audio::new().unwrap();
     let mut io = DummyIO;
 
     // ROM is loaded at 0x0100 as 0x0000-0x00FF was reserved for BOOT instruction
@@ -60,6 +61,7 @@ fn run_cpu_test(rom: &[u8]) -> String {
             interrupts: &mut int,
             io: &mut io,
             video: &mut video,
+            audio: &mut audio,
             has_mirrors: false,
             mirror_mask: 0,
         });

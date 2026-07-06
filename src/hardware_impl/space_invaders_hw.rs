@@ -1,4 +1,4 @@
-use crate::io::*;
+use crate::{audio::Audio, io::*};
 
 pub struct SpaceInvadersHardware {
     // Input state
@@ -109,7 +109,7 @@ impl IOHandler for SpaceInvadersHardware {
         }
     }
 
-    fn write_port(&mut self, port: u8, value: u8) {
+    fn write_port(&mut self, audio: &mut Audio, port: u8, value: u8) {
         match port {
             2 => {
                 // The offset is strictly 0-7, so we mask out higher bits
@@ -120,9 +120,13 @@ impl IOHandler for SpaceInvadersHardware {
                 // Then place the new value in the upper 8 bits
                 self.shift_register = (self.shift_register >> 8) | ((value as u16) << 8);
             }
-            3 | 5 => {
-                // Unimplemented sound triggers
-                // unimplemented!();
+            3 => {
+                // Play audio from sound 3
+                audio.play_sound_port_3(value);
+            }
+            5 => {
+                // Play audio from sound 5
+                audio.play_sound_port_5(value);
             }
             _ => {} // Ignore writes to unmapped ports
         }
