@@ -5,18 +5,47 @@ use crate::*;
 pub struct Bus<'a, I: io::IOHandler> {
     pub memory: &'a mut memory::Memory,
     pub interrupts: &'a mut int::Int,
+    pub video: &'a mut video::Video,
     pub io: &'a mut I,
+    pub has_mirrors: bool,
+    pub mirror_mask: u16,
 }
 
 impl<'a, I: io::IOHandler> Bus<'_, I> {
     /// Read a single byte from memory
     pub fn read_u8(&self, addr: u16) -> u8 {
-        self.memory.read(addr)
+        if self.has_mirrors {
+            let real_addr = addr & self.mirror_mask;
+            match real_addr >> 8 {
+                n if n <= 0b0001_1111 => self.memory.read(real_addr),
+                n if n >= 0b0010_0000 && n <= 0b0010_0011 => self.memory.read(real_addr),
+                n if n >= 0b0010_0100 && n <= 0b0011_1111 => {
+                    self.video.read_vram(real_addr - 0x2400)
+                }
+                _ => unreachable!(),
+            }
+        } else {
+            self.memory.read(addr)
+        }
     }
 
     /// Write a single byte to memory
     pub fn write_u8(&mut self, addr: u16, val: u8) {
-        self.memory.write(addr, val);
+        if self.has_mirrors {
+            let real_addr = addr & self.mirror_mask;
+            match real_addr >> 8 {
+                n if n <= 0b0001_1111 => self.memory.write(real_addr, val),
+                n if n >= 0b0010_0000 && n <= 0b0010_0011 => self.memory.write(real_addr, val),
+                n if n >= 0b0010_0100 && n <= 0b0011_1111 => {
+                    self.video.write_vram(real_addr - 0x2400, val);
+                    // Update also the memory array to hold a copy of VRAM
+                    self.memory.write(real_addr, val);
+                }
+                _ => unreachable!(),
+            }
+        } else {
+            self.memory.write(addr, val);
+        }
     }
 
     /// Read two bytes from memory

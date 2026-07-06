@@ -1,4 +1,4 @@
-use crate::{cpu, int, io, memory};
+use crate::{cpu, int, io, memory, video};
 use cpu::Bus;
 
 struct DummyIO;
@@ -15,6 +15,7 @@ fn run_cpu_test(rom: &[u8]) -> String {
     let mut cpu = cpu::Cpu::new();
     let mut int = int::Int::new();
     let mut memory = memory::Memory::new(None);
+    let mut video = video::Video::new();
     let mut io = DummyIO;
 
     // ROM is loaded at 0x0100 as 0x0000-0x00FF was reserved for BOOT instruction
@@ -58,6 +59,9 @@ fn run_cpu_test(rom: &[u8]) -> String {
             memory: &mut memory,
             interrupts: &mut int,
             io: &mut io,
+            video: &mut video,
+            has_mirrors: false,
+            mirror_mask: 0,
         });
         cycles += step_cycles as u64;
 

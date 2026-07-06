@@ -23,6 +23,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         .opengl()
         .build()?;
 
+    let mut canvas = win.into_canvas().accelerated().present_vsync().build()?;
+
+    let texture_creator = canvas.texture_creator();
+    let mut texture = texture_creator.create_texture_streaming(
+        sdl2::pixels::PixelFormatEnum::RGB24,
+        video::WIDTH as u32,
+        video::HEIGHT as u32,
+    )?;
+
     let mut cpu = cpu::Cpu::new();
     let mut interrupts = int::Int::new();
     let mut memory = memory::Memory::new(Some((0x0000, 0x1FFF)));
@@ -49,13 +58,16 @@ fn main() -> Result<(), Box<dyn Error>> {
                 let cycles = cpu.step(&mut cpu::Bus {
                     memory: &mut memory,
                     interrupts: &mut interrupts,
+                    video: &mut video,
                     io: &mut arcade_hw,
+                    has_mirrors: true,
+                    mirror_mask: 0x3FFF,
                 });
 
                 let keyboard = pump.keyboard_state();
                 let inputs = io::ArcadeInputs {
-                    coin: keyboard.is_scancode_pressed(Scancode::KpEnter),
-                    tilt: keyboard.is_scancode_pressed(Scancode::CapsLock),
+                    coin: keyboard.is_scancode_pressed(Scancode::Escape),
+                    tilt: keyboard.is_scancode_pressed(Scancode::Tab),
                     p1_start: keyboard.is_scancode_pressed(Scancode::V),
                     p2_start: keyboard.is_scancode_pressed(Scancode::B),
                     p1_left: keyboard.is_scancode_pressed(Scancode::Left),
@@ -68,6 +80,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                 arcade_hw.update_input(&inputs);
                 video.step(&mut interrupts, cycles);
+                if video.img_ready {
+                    texture.update(None, &*video.pixel_buffer, video::WIDTH * 3);
+                    canvas.copy(&texture, None, None);
+                    canvas.present();
+                }
 
                 acc += cycles;
             }
