@@ -20,7 +20,7 @@ impl Memory {
             assert!(end <= MEMORY_SIZE, "ROM bounds exceed 64 KB address space");
         }
         Self {
-            memory: Box::new([0; 65536]),
+            memory: Box::new([0; MEMORY_SIZE]),
             rom_bounds,
         }
     }
