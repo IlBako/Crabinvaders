@@ -1,4 +1,4 @@
-use sdl2::mixer::{Channel, Chunk};
+use sdl2::{mixer::{Channel, Chunk, LoaderRWops}, rwops::RWops};
 
 pub struct Audio {
     last_out_3: u8,
@@ -19,21 +19,26 @@ impl Audio {
         sdl2::mixer::open_audio(44_100, sdl2::mixer::AUDIO_S16LSB, 2, 1024)?;
         sdl2::mixer::allocate_channels(8);
 
+        // Closure function to faciliate the loading of the wav files using RWOps
+        let load_wav = |bytes: &[u8]| -> Result<Chunk, String> {
+            RWops::from_bytes(bytes)?.load_wav()
+        };
+
         Ok(Self {
             last_out_3: 0,
             last_out_5: 0,
 
             // Load .wav files
-            ufo_flying: Chunk::from_file("./src/bin/rom/space_invaders/audio/0.wav")?,
-            ufo_hit: Chunk::from_file("./src/bin/rom/space_invaders/audio/8.wav")?,
-            player_shot: Chunk::from_file("./src/bin/rom/space_invaders/audio/1.wav")?,
-            player_death: Chunk::from_file("./src/bin/rom/space_invaders/audio/2.wav")?,
-            invader_death: Chunk::from_file("./src/bin/rom/space_invaders/audio/3.wav")?,
+            ufo_flying: load_wav(include_bytes!("bin/rom/space_invaders/audio/0.wav"))?,
+            ufo_hit: load_wav(include_bytes!("bin/rom/space_invaders/audio/8.wav"))?,
+            player_shot: load_wav(include_bytes!("bin/rom/space_invaders/audio/1.wav"))?,
+            player_death: load_wav(include_bytes!("bin/rom/space_invaders/audio/2.wav"))?,
+            invader_death: load_wav(include_bytes!("bin/rom/space_invaders/audio/3.wav"))?,
             invader_march: [
-                Chunk::from_file("./src/bin/rom/space_invaders/audio/4.wav")?,
-                Chunk::from_file("./src/bin/rom/space_invaders/audio/5.wav")?,
-                Chunk::from_file("./src/bin/rom/space_invaders/audio/6.wav")?,
-                Chunk::from_file("./src/bin/rom/space_invaders/audio/7.wav")?,
+                load_wav(include_bytes!("bin/rom/space_invaders/audio/4.wav"))?,
+                load_wav(include_bytes!("bin/rom/space_invaders/audio/5.wav"))?,
+                load_wav(include_bytes!("bin/rom/space_invaders/audio/6.wav"))?,
+                load_wav(include_bytes!("bin/rom/space_invaders/audio/7.wav"))?,
             ],
         })
     }
